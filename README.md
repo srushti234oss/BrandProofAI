@@ -16,15 +16,15 @@ Requirements: Python 3.10+, Node.js 20+, and (for OCR) Tesseract OCR. SQLite is 
 
 ## Hackathon deployment (Render)
 
-The repository includes a single-origin Render deployment (`render.yaml` + `Dockerfile`). It builds the React app into Django, runs Gunicorn and the analysis worker in the same service, and creates a PostgreSQL database. This avoids separate frontend/API cookie and CORS setup. It uses Django migrations only: **it does not run `seed_demo` or create sample workspace/content records**. After deploy, register your own account, create your workspace, and enter your own guidelines, evidence, and review content.
+The repository includes a single-origin Render deployment (`render.yaml` + `Dockerfile`). It builds the React app into Django, runs Gunicorn and the analysis worker in the same service. For a short hackathon deployment it uses a fresh SQLite database inside the service, avoiding the workspace’s one-free-Postgres-database limit. This avoids separate frontend/API cookie and CORS setup. It uses Django migrations only: **it does not run `seed_demo` or create sample workspace/content records**. After deploy, register your own account, create your workspace, and enter your own guidelines, evidence, and review content.
 
 1. Put this project in a GitHub repository. Do not upload `.env`, `backend/.env`, `backend/db.sqlite3`, or uploaded files. The `.gitignore` excludes these local/private files and generated dependency/build folders.
-2. In Render, choose **New → Blueprint**, connect the repository, and create the Blueprint from `render.yaml`. Render generates the Django secret and connects the new PostgreSQL database. No AI key is required to start the deployment.
+2. In Render, choose **New → Blueprint**, connect the repository, and create the Blueprint from `render.yaml`. Render generates the Django secret. No AI key or new PostgreSQL database is required to start the deployment.
 3. Wait for the `brandproof` service to finish building, then open its `onrender.com` URL. Register, create a workspace, add at least one rule and an approved evidence source, and submit your own pasted copy. The worker processes submissions. Do not run `seed_demo` for a clean project.
 4. To enable LLM analysis, open the service's **Environment** settings and add `LLM_API_KEY`, `LLM_MODEL`, and optionally `LLM_EMBEDDING_MODEL`. Save the changes and let Render redeploy. Keep the key in Render's secret settings, never in GitHub or chat. With no LLM key, deterministic rules still run, while factual claims remain unverified.
 5. Tesseract OCR is included in this deployment image, so image and scanned-PDF OCR can run without a separate OCR API key.
 
-This quick demo deployment stores uploaded files on the service's temporary local filesystem. They are available to the colocated worker during a running instance, but may disappear when the service restarts or redeploys. Configure private S3-compatible storage as described above before using sensitive files or relying on long-term file retention. The free Render PostgreSQL plan is temporary; check Render's current terms before relying on it beyond the hackathon.
+**Temporary demo storage warning:** SQLite and uploaded files are on Render's temporary local filesystem. User accounts, workspaces, reviews, and uploads can disappear when the service restarts, sleeps, or redeploys. This is only for a short-lived demonstration. Do not enter sensitive content. For persistence, switch to a dedicated PostgreSQL database and private object storage after the hackathon; do not reuse another app's database without isolating it.
 
 For an explicitly labeled walkthrough workspace, run from `backend/`:
 
