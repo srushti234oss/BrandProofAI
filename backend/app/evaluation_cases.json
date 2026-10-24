@@ -1,0 +1,28 @@
+{
+  "dataset": "BrandProof synthetic evaluation cases",
+  "version": 1,
+  "synthetic": true,
+  "notice": "Expected outcomes are labels for test design, not measured model performance.",
+  "claim_cases": [
+    {"id":"claim-supported","text":"The pilot served 500 customers.","evidence":["The pilot served 500 customers."],"expected":"supported"},
+    {"id":"claim-contradicted","text":"The pilot served 500 customers.","evidence":["The pilot served 250 customers."],"expected":"contradicted"},
+    {"id":"claim-unsupported-number","text":"Our service is used by 99,999 teams.","evidence":[],"expected":"unverified"},
+    {"id":"claim-missing-evidence","text":"Customers save time with this service.","evidence":[],"expected":"unverified"},
+    {"id":"claim-conflicting-evidence","text":"The launch is scheduled for June.","evidence":["The launch is scheduled for June.","The launch is scheduled for July."],"expected":"uncertain"},
+    {"id":"term-prohibited","text":"A cheap plan for teams.","rule":{"category":"prohibited","text":"cheap"},"expected":"finding"},
+    {"id":"term-preferred","text":"Tools for users.","rule":{"category":"preferred","text":"users","replacement":"members"},"expected":"finding-with-replacement"},
+    {"id":"tone-configured","text":"A configured tone example.","rule":{"category":"tone","text":"Use calm, direct language."},"expected":"advisory-tone-finding"},
+    {"id":"absolute-restricted","text":"The best service, guaranteed.","rule":{"category":"claim","text":"Avoid unsupported superlatives and guarantees."},"expected":"finding"},
+    {"id":"clean-compliant","text":"A calm way to plan your week.","rules":[],"evidence":[],"expected":"no-rule-finding; no factual-verification-claim"}
+  ],
+  "visual_cases": [
+    {"id":"visual-approved-palette","setup":"Generated image dominated by configured palette color.","expected":"advisory palette comparison"},
+    {"id":"visual-color-deviation","setup":"Generated image dominated by a color far from configured palette.","expected":"advisory palette comparison; not an automatic violation"},
+    {"id":"visual-readable-ocr","setup":"Generated image with high contrast, large text and OCR-compatible font.","expected":"OCR text and approximate regions when Tesseract is installed"},
+    {"id":"visual-low-quality","setup":"Generated blurred, low-resolution text image.","expected":"low-confidence warning or no readable OCR; never compliant-by-default"},
+    {"id":"visual-scanned-page","setup":"Image-only PDF page with printed text.","expected":"OCR text with page marker when PyMuPDF and Tesseract are installed"},
+    {"id":"visual-matching-logo","setup":"Generated image containing the supplied reference logo at supported scale.","expected":"possible match with confidence and region"},
+    {"id":"visual-different-logo","setup":"Generated image containing a visibly different mark.","expected":"uncertain/mismatch candidate for human review"},
+    {"id":"visual-uncertain-logo","setup":"Small, rotated or partially occluded reference mark.","expected":"uncertain or unsupported; no definitive claim"}
+  ]
+}

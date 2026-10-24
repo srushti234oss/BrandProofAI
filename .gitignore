@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+backend/db.sqlite3
+backend/media/
+backend/.venv/
+frontend/node_modules/
+frontend/dist/
+.env
+*.tsbuildinfo
