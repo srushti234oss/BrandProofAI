@@ -133,17 +133,31 @@ def guidelines(request,ws_id):
     if not m:return Response({'error':'Workspace not found.'},status=404)
     if request.method=='GET':return maybe_paginate(request,[{'id':g.id,'name':g.name,'version':g.version,'source_text':g.source_text,'rules':[ruledata(r) for r in g.rules.all()],'examples':[{'id':x.id,'text':x.text,'approved':x.approved} for x in g.examples.all()],'versions':[{'number':x.number,'created_at':x.created_at,'snapshot':x.snapshot} for x in g.versions.order_by('-number')]} for g in m.workspace.guidelines.all()])
     if m.role not in ['admin','manager']:return Response({'error':'Brand manager permission required.'},status=403)
-    source=request.data.get('source_text',''); upload=request.FILES.get('file'); warnings=[]
+    source=request.data.get('source_text','') or ''; upload=request.FILES.get('file'); warnings=[]
     if upload:
         if upload.size>20*1024*1024:return Response({'error':'Maximum guideline upload size is 20 MB.'},status=400)
         if upload.name.lower().endswith(('.png','.jpg','.jpeg')):return Response({'error':'Guidelines support TXT, PDF and DOCX files.'},status=400)
         try: source,warnings,_metadata=extract(upload)
         except ValueError as exc:return Response({'error':str(exc)},status=400)
         if not source.strip():return Response({'error':'No text could be extracted from this guideline document.'},status=400)
-    g=Guideline.objects.create(workspace=m.workspace,name=request.data.get('name','Brand rules'),source_text=source,source_file=upload if upload else None)
-    GuidelineVersion.objects.create(guideline=g,number=1,created_by=request.user,snapshot={'name':g.name,'source_text':g.source_text,'rules':[]})
-    sync_guideline_chunks(g)
-    return Response({'id':g.id,'name':g.name,'version':g.version,'source_text':g.source_text,'warnings':warnings,'rules':[]},status=201)
+    name=(request.data.get('name','Brand rules') or '').strip()
+    if not name:return Response({'error':'Guideline name is required.'},status=400)
+    title=(request.data.get('rule_title','') or '').strip(); rule_text=(request.data.get('rule_text','') or '').strip()
+    category=request.data.get('rule_category','general') or 'general'
+    if bool(title)!=bool(rule_text):return Response({'error':'Both rule title and rule text are required.'},status=400)
+    if title and category not in dict(Rule.CATEGORIES):return Response({'error':'Invalid rule category.'},status=400)
+    with transaction.atomic():
+        g=Guideline.objects.create(workspace=m.workspace,name=name,source_text=source,source_file=upload if upload else None)
+        GuidelineVersion.objects.create(guideline=g,number=1,created_by=request.user,snapshot={'name':g.name,'source_text':g.source_text,'rules':[]})
+        sync_guideline_chunks(g)
+        created_rules=[]
+        if title:
+            rule=Rule.objects.create(guideline=g,title=title,text=rule_text,category=category,severity='medium',replacement=request.data.get('rule_replacement','') or '')
+            g.version=2;g.save(update_fields=['version'])
+            created_rules.append(ruledata(rule))
+            GuidelineVersion.objects.create(guideline=g,number=2,created_by=request.user,snapshot={'name':g.name,'source_text':g.source_text,'rules':[ruledata(x) for x in g.rules.all()]})
+            sync_guideline_chunks(g)
+    return Response({'id':g.id,'name':g.name,'version':g.version,'source_text':g.source_text,'warnings':warnings,'rules':created_rules},status=201)
 @api_view(['POST'])
 def rules(request,ws_id,gid):
     m=member(request,ws_id)
