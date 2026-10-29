@@ -30,7 +30,7 @@ if os.getenv('DATABASE_URL'):
     params=urllib.parse.parse_qs(u.query)
     database_options={'sslmode':params.get('sslmode',['prefer'])[0]} if params.get('sslmode') else {}
     DATABASES={'default':{'ENGINE':'django.db.backends.postgresql','NAME':urllib.parse.unquote(u.path.lstrip('/')),'USER':urllib.parse.unquote(u.username or ''),'PASSWORD':urllib.parse.unquote(u.password or ''),'HOST':u.hostname,'PORT':u.port or 5432,'CONN_MAX_AGE':60,'CONN_HEALTH_CHECKS':True,'OPTIONS':database_options}}
-else: DATABASES={'default':{'ENGINE':'django.db.backends.sqlite3','NAME':BASE_DIR/'db.sqlite3'}}
+else: DATABASES={'default':{'ENGINE':'django.db.backends.sqlite3','NAME':os.getenv('SQLITE_PATH',str(BASE_DIR/'db.sqlite3'))}}
 if os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST=os.environ['EMAIL_HOST']; EMAIL_PORT=int(os.getenv('EMAIL_PORT','587'))
@@ -61,7 +61,7 @@ if not DEBUG:
     CSRF_COOKIE_SECURE=True
     SECURE_SSL_REDIRECT=True
     SECURE_PROXY_SSL_HEADER=('HTTP_X_FORWARDED_PROTO','https')
-MEDIA_ROOT=BASE_DIR/'media'; MEDIA_URL='/media/'
+MEDIA_ROOT=Path(os.getenv('MEDIA_ROOT',str(BASE_DIR/'media'))); MEDIA_URL='/media/'
 CORS_ALLOWED_ORIGINS=os.getenv('CORS_ALLOWED_ORIGINS','http://localhost:5173').split(',')
 CSRF_TRUSTED_ORIGINS=os.getenv('CSRF_TRUSTED_ORIGINS','http://localhost:5173').split(',')
 FILE_UPLOAD_MAX_MEMORY_SIZE=5*1024*1024

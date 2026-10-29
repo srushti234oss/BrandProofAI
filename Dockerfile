@@ -18,6 +18,7 @@ COPY --from=frontend-build /frontend/dist/index.html ./templates/app/index.html
 COPY --from=frontend-build /frontend/dist/assets ./static/brandproof/assets
 RUN python manage.py collectstatic --noinput
 COPY deploy/render-start.sh /app/render-start.sh
-RUN chmod +x /app/render-start.sh
+COPY deploy/render-web-start.sh /app/render-web-start.sh
+RUN chmod +x /app/render-start.sh /app/render-web-start.sh
 EXPOSE 10000
 CMD ["/app/render-start.sh"]

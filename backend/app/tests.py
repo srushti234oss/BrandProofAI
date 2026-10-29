@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
-from .models import Workspace, Membership, Guideline, Rule, Asset, AssetVersion, Finding, Review, ExtractedClaim, Comment, AuditEvent
+from .models import Workspace, Membership, Guideline, Rule, Asset, AssetVersion, Finding, Review, ExtractedClaim, Comment, AuditEvent, AnalysisRun
 class BrandProofApiTests(TestCase):
     def setUp(self):
         self.user=User.objects.create_user(username='reviewer',password='a-long-test-password')
@@ -27,6 +27,95 @@ class BrandProofApiTests(TestCase):
         res=self.client.get(f'/api/v1/workspaces/{self.workspace.id}/dashboard/')
         self.assertEqual(res.status_code,200); self.assertEqual(res.data['total_assets'],0)
         self.assertEqual(self.client.get('/api/v1/workspaces/9999/dashboard/').status_code,404)
+    def test_end_to_end_register_guideline_evidence_review_and_receipt(self):
+        client=APIClient()
+        registered=client.post('/api/v1/auth/',{'action':'register','username':'journey-user','password':'A-strong-test-password-2026'},format='json')
+        self.assertEqual(registered.status_code,200)
+        workspace=client.post('/api/v1/workspaces/',{'name':'Journey Brand'},format='json')
+        self.assertEqual(workspace.status_code,201)
+        wid=workspace.data['id']
+        guideline=client.post(f'/api/v1/workspaces/{wid}/guidelines/',{'name':'Journey rules','source_text':'Use careful claims.','rule_title':'Avoid guaranteed','rule_text':'guaranteed','rule_category':'prohibited'},format='json')
+        self.assertEqual(guideline.status_code,201)
+        evidence=client.post(f'/api/v1/workspaces/{wid}/evidence/',{'name':'Approved product brief','passage':'BrightBite contains oats.','approved':True,'source_type':'internal'},format='json')
+        self.assertEqual(evidence.status_code,201)
+        submitted=client.post(f'/api/v1/workspaces/{wid}/assets/',{'title':'Journey social post','campaign':'Journey','content':'BrightBite is guaranteed to delight. It contains oats.'},format='json')
+        self.assertEqual(submitted.status_code,202)
+        from .views import process_analysis_run
+        run=AnalysisRun.objects.get(version__asset_id=submitted.data['id'])
+        process_analysis_run(run.id)
+        checked=client.get(f'/api/v1/workspaces/{wid}/assets/')
+        self.assertEqual(checked.status_code,200)
+        reviewed_asset=next(item for item in checked.data if item['id']==submitted.data['id'])
+        self.assertTrue(reviewed_asset['version']['findings'])
+        decision=client.post(f'/api/v1/workspaces/{wid}/assets/{submitted.data["id"]}/review/',{'state':'submitted'},format='json')
+        self.assertEqual(decision.status_code,201)
+        receipt=client.get(f'/api/v1/workspaces/{wid}/assets/{submitted.data["id"]}/receipt/')
+        self.assertEqual(receipt.status_code,200)
+        self.assertEqual(receipt.data['decision'],'submitted')
+        self.assertEqual(receipt.data['analysis_state'],'warnings')
+    def test_asset_submission_rejects_non_text_fields_without_server_error(self):
+        response=self.client.post(f'/api/v1/workspaces/{self.workspace.id}/assets/',{'title':['not','text'],'content':'Some copy'},format='json')
+        self.assertEqual(response.status_code,400)
+        self.assertIn('must be text',response.data['error'])
+        self.assertEqual(Asset.objects.count(),0)
+    def test_repeating_review_decision_is_idempotent(self):
+        asset=Asset.objects.create(workspace=self.workspace,title='Repeat decision',created_by=self.user)
+        AssetVersion.objects.create(asset=asset,number=1,content='Copy',extracted_text='Copy',content_hash='9'*64,created_by=self.user)
+        path=f'/api/v1/workspaces/{self.workspace.id}/assets/{asset.id}/review/'
+        first=self.client.post(path,{'state':'submitted'},format='json')
+        second=self.client.post(path,{'state':'submitted'},format='json')
+        self.assertEqual(first.status_code,201)
+        self.assertEqual(second.status_code,200)
+        self.assertTrue(second.data['duplicate'])
+        self.assertEqual(Review.objects.count(),1)
+    def test_repeating_retry_returns_existing_queued_job(self):
+        asset=Asset.objects.create(workspace=self.workspace,title='Retry once',created_by=self.user)
+        version=AssetVersion.objects.create(asset=asset,number=1,content='Copy',extracted_text='Copy',content_hash='8'*64,created_by=self.user)
+        AnalysisRun.objects.create(version=version,state='failed')
+        path=f'/api/v1/workspaces/{self.workspace.id}/assets/{asset.id}/retry-analysis/'
+        first=self.client.post(path,{},format='json')
+        second=self.client.post(path,{},format='json')
+        self.assertEqual(first.status_code,202)
+        self.assertEqual(second.status_code,202)
+        self.assertTrue(second.data['duplicate'])
+        self.assertEqual(AnalysisRun.objects.filter(version=version).count(),2)
+    def test_campaign_consistency_flags_repeated_sentence_with_changed_numbers(self):
+        from .models import AssetVersion
+        for title,campaign,text in [('Landing page','Spring 2026','Get 24-hour hydration support.'),('Social post','spring 2026','Get 72-hour hydration support.')]:
+            asset=Asset.objects.create(workspace=self.workspace,title=title,campaign=campaign,created_by=self.user)
+            AssetVersion.objects.create(asset=asset,number=1,content=text,extracted_text=text,content_hash=title.lower().replace(' ','0')[:64].ljust(64,'a'),created_by=self.user)
+        response=self.client.get(f'/api/v1/workspaces/{self.workspace.id}/campaigns/consistency/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(len(response.data['campaigns']),1)
+        campaign=response.data['campaigns'][0]
+        self.assertEqual(campaign['asset_count'],2)
+        self.assertEqual(campaign['conflict_count'],1)
+        self.assertEqual(campaign['conflicts'][0]['left']['numbers'],['24'])
+        self.assertEqual(campaign['conflicts'][0]['right']['numbers'],['72'])
+    def test_campaign_consistency_does_not_flag_same_value_or_different_workspaces(self):
+        from .models import AssetVersion
+        for title,text in [('A','Get 24-hour hydration support.'),('B','Get 24-hour hydration support.')]:
+            asset=Asset.objects.create(workspace=self.workspace,title=title,campaign='Summer',created_by=self.user)
+            AssetVersion.objects.create(asset=asset,number=1,content=text,extracted_text=text,content_hash=(title.lower()*64)[:64],created_by=self.user)
+        other=Workspace.objects.create(name='Other')
+        other_user=User.objects.create_user(username='other-reviewer',password='a-long-test-password')
+        Membership.objects.create(workspace=other,user=other_user,role='admin')
+        outside=Asset.objects.create(workspace=other,title='Outside',campaign='Summer',created_by=other_user)
+        AssetVersion.objects.create(asset=outside,number=1,content='Get 99-hour hydration support.',extracted_text='Get 99-hour hydration support.',content_hash='c'*64,created_by=other_user)
+        response=self.client.get(f'/api/v1/workspaces/{self.workspace.id}/campaigns/consistency/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.data['campaigns'][0]['conflict_count'],0)
+    def test_campaign_consistency_flags_disclaimer_and_preferred_wording_mismatches(self):
+        guide=Guideline.objects.create(workspace=self.workspace,name='Approved wording')
+        Rule.objects.create(guideline=guide,title='Preferred phrase',text='eco friendly',replacement='environmentally considerate',category='preferred')
+        copies=[('Landing page','Get an eco friendly clean. Terms and conditions apply.'),('Social post','Get an environmentally considerate clean.')]
+        for index,(title,text) in enumerate(copies):
+            asset=Asset.objects.create(workspace=self.workspace,title=title,campaign='Summer launch',created_by=self.user)
+            AssetVersion.objects.create(asset=asset,number=1,content=text,extracted_text=text,content_hash=hex(index+10)[2:]*64,created_by=self.user)
+        response=self.client.get(f'/api/v1/workspaces/{self.workspace.id}/campaigns/consistency/')
+        self.assertEqual(response.status_code,200)
+        conflicts=response.data['campaigns'][0]['conflicts']
+        self.assertEqual({item['type'] for item in conflicts},{'preferred_wording_mismatch','disclaimer_presence_mismatch'})
     def test_upload_runs_explicit_rule_checks_and_claims_unverified(self):
         guide=Guideline.objects.create(workspace=self.workspace,name='Voice')
         Rule.objects.create(guideline=guide,title='Avoid cheap',text='cheap',category='prohibited')
@@ -308,6 +397,17 @@ class BrandProofApiTests(TestCase):
         first.refresh_from_db();self.assertEqual(first.state,'failed');self.assertIsNotNone(first.finished_at)
         retry=self.client.post(f'/api/v1/workspaces/{self.workspace.id}/assets/{response.data["id"]}/retry-analysis/',{},format='json')
         self.assertEqual(retry.status_code,202);self.assertEqual(retry.data['state'],'queued')
+    def test_worker_automatically_retries_failed_job_up_to_configured_limit(self):
+        from django.core.management import call_command
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from unittest.mock import patch
+        response=self.client.post(f'/api/v1/workspaces/{self.workspace.id}/assets/',{'title':'Retry corrupt PDF','file':SimpleUploadedFile('broken.pdf',b'not a PDF','application/pdf')},format='multipart')
+        with patch('app.management.commands.run_analysis_worker.time.sleep'):
+            call_command('run_analysis_worker',once=True,max_attempts=3,verbosity=0)
+        run=AnalysisRun.objects.get(version__asset_id=response.data['id'])
+        self.assertEqual(run.state,'failed')
+        self.assertEqual(run.attempts,3)
+        self.assertEqual(run.version.asset.status,'failed')
     def test_workspace_invitation_is_single_use_and_assigns_invited_role(self):
         from urllib.parse import urlparse,parse_qs
         invite=self.client.post(f'/api/v1/workspaces/{self.workspace.id}/invitations/',{'email':'new-member@example.test','role':'reviewer'},format='json')
@@ -354,10 +454,29 @@ class BrandProofApiTests(TestCase):
         other=Workspace.objects.create(name='Vector isolation')
         best=EvidenceSource.objects.create(workspace=self.workspace,name='Relevant',passage='relevant',approved=True,embedding=[0.98,0.1],embedding_model='test-embed')
         EvidenceSource.objects.create(workspace=self.workspace,name='Poor match',passage='other',approved=True,embedding=[0.1,0.98],embedding_model='test-embed')
+        lexical=EvidenceSource.objects.create(workspace=self.workspace,name='claim source',passage='claim wording',approved=True,embedding=[0.1,0.98],embedding_model='test-embed')
         EvidenceSource.objects.create(workspace=self.workspace,name='Unapproved',passage='x',approved=False,embedding=[1,0],embedding_model='test-embed')
         EvidenceSource.objects.create(workspace=other,name='Foreign',passage='x',approved=True,embedding=[1,0],embedding_model='test-embed')
         rows,method=retrieve_evidence_with_embeddings(self.workspace,'claim',[1,0],'test-embed')
-        self.assertEqual(rows,[best]);self.assertEqual(method,'embeddings_cosine')
+        self.assertEqual(method,'embeddings_hybrid')
+        self.assertIn(best,rows);self.assertIn(lexical,rows)
+    def test_pgvector_candidate_is_rechecked_for_current_approval(self):
+        from unittest.mock import patch
+        from .models import EvidenceSource
+        from .retrieval import retrieve_evidence_with_embeddings
+        revoked=EvidenceSource.objects.create(workspace=self.workspace,name='Claim support',passage='claim data',approved=False,embedding=[1,0],embedding_model='test-embed')
+        with patch('app.retrieval._pgvector_rows',return_value=[(revoked.id,0.99)]):
+            rows,method=retrieve_evidence_with_embeddings(self.workspace,'claim',[1,0],'test-embed')
+        self.assertEqual(rows,[])
+        self.assertEqual(method,'embeddings_empty')
+    def test_embedding_index_mirrors_json_vectors_for_portable_fallback(self):
+        from .models import EvidenceSource, EmbeddingIndex
+        from .retrieval import sync_embedding_index
+        source=EvidenceSource.objects.create(workspace=self.workspace,name='Facts',passage='Fact passage',approved=True)
+        sync_embedding_index(workspace=self.workspace,evidence_source=source,embedding=[0.25,0.75],model='test-embed')
+        row=EmbeddingIndex.objects.get(evidence_source=source,embedding_model='test-embed')
+        self.assertEqual(row.dimensions,2)
+        self.assertEqual(row.embedding_json,[0.25,0.75])
     def test_configured_ai_uses_embedding_ranked_evidence(self):
         from unittest.mock import patch
         from .models import EvidenceSource

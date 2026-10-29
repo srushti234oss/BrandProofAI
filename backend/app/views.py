@@ -1,6 +1,6 @@
 import hashlib, re, secrets, difflib
 from datetime import timedelta
-from django.db import transaction, models
+from django.db import transaction, models, connection
 from django.utils import timezone
 from django.core.validators import validate_email
 from django.http import JsonResponse, HttpResponse, FileResponse
@@ -299,7 +299,7 @@ def deterministic_claim_triage(v):
 def run_configured_ai(v, ws):
     from .ai import analyze as provider_analyze, ProviderNotConfigured
     from django.db.models import F
-    from .retrieval import retrieve_evidence, retrieve_evidence_with_embeddings, retrieve_guideline_chunks
+    from .retrieval import retrieve_evidence, retrieve_evidence_with_embeddings, retrieve_guideline_chunks, sync_embedding_index
     rules=list(Rule.objects.filter(guideline__workspace=ws,active=True))
     examples=list(ApprovedExample.objects.filter(guideline__workspace=ws).order_by('-created_at')[:20])
     evidence=retrieve_evidence(ws,v.extracted_text);guideline_chunks,retrieval_method=retrieve_guideline_chunks(ws,v.extracted_text);retrieval_warning=None
@@ -312,18 +312,20 @@ def run_configured_ai(v, ws):
                     source.embedding=embed(f'{source.name}\n{source.location}\n{source.passage}')
                     source.embedding_model=embedding_model
                     source.save(update_fields=['embedding','embedding_model'])
+                sync_embedding_index(workspace=ws,evidence_source=source,embedding=source.embedding,model=embedding_model)
             current_chunks=GuidelineChunk.objects.filter(guideline__workspace=ws,version=F('guideline__version')).select_related('guideline')
             for chunk in current_chunks:
                 if chunk.embedding_model!=embedding_model or not chunk.embedding:
                     chunk.embedding=embed(f'{chunk.guideline.name}\n{chunk.location}\n{chunk.text}')
                     chunk.embedding_model=embedding_model
                     chunk.save(update_fields=['embedding','embedding_model'])
+                sync_embedding_index(workspace=ws,guideline_chunk=chunk,embedding=chunk.embedding,model=embedding_model)
             query_vector=embed(v.extracted_text)
             vector_sources,method=retrieve_evidence_with_embeddings(ws,v.extracted_text,query_vector,embedding_model)
-            if method=='embeddings_cosine' and vector_sources:evidence=vector_sources
+            if method in ('embeddings_hybrid','pgvector_hybrid') and vector_sources:evidence=vector_sources
             else:retrieval_warning='No compatible approved evidence embeddings were available; lexical evidence retrieval was used.'
             guideline_chunks,guideline_method=retrieve_guideline_chunks(ws,v.extracted_text,query_vector,embedding_model)
-            if guideline_method!='embeddings_cosine':retrieval_warning='Guideline-section embeddings were not available for this query; lexical guideline retrieval was used.'
+            if guideline_method not in ('embeddings_hybrid','pgvector_hybrid'):retrieval_warning='Guideline-section embeddings were not available for this query; lexical guideline retrieval was used.'
         except Exception as exc:
             retrieval_warning=f'Embedding retrieval failed ({type(exc).__name__}); lexical evidence retrieval was used.'
             guideline_chunks,retrieval_method=retrieve_guideline_chunks(ws,v.extracted_text)
@@ -487,7 +489,7 @@ def process_analysis_run(run_id):
         if run.state not in ['queued','failed']:
             return run
         version=run.version;asset=version.asset;workspace=asset.workspace
-        if version.analysis_runs.exclude(id=run.id).filter(state='failed').exists():
+        if run.attempts or version.analysis_runs.exclude(id=run.id).filter(state='failed').exists():
             version.findings.all().delete();version.claims.all().delete()
         run.state='processing';run.started_at=timezone.now();run.finished_at=None;run.errors=[];run.attempts+=1;run.save(update_fields=['state','started_at','finished_at','errors','attempts'])
         asset.status='processing';asset.save(update_fields=['status'])
@@ -537,13 +539,95 @@ def process_analysis_run(run_id):
     asset.status=final_state;asset.save(update_fields=['status'])
     return run
 
+def _campaign_number_pattern(sentence):
+    """Return a conservative sentence fingerprint and its literal numbers."""
+    numbers=re.findall(r'(?<![a-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s?%)?',sentence,re.I)
+    if not numbers:return None,[]
+    fingerprint=re.sub(r'(?<![a-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s?%)?',' <number> ',sentence.casefold(),flags=re.I)
+    fingerprint=' '.join(re.findall(r'[a-z]+|<number>',fingerprint))
+    if len(re.findall(r'[a-z]{2,}',fingerprint))<2:return None,[]
+    return fingerprint,numbers
+
+@api_view(['GET'])
+def campaign_consistency(request,ws_id):
+    """Surface conservative number, wording, and disclosure differences across a campaign."""
+    m=member(request,ws_id)
+    if not m:return Response({'error':'Workspace not found.'},status=404)
+    preferred_rules=list(Rule.objects.filter(guideline__workspace=m.workspace,active=True,category='preferred'))
+    grouped={};disclaimer_pattern=re.compile(r'\b(?:terms and conditions|terms apply|conditions apply|results may vary|subject to|not intended for|while supplies last|offer expires|eligibility restrictions)\b|[†*]',re.I)
+    campaign_assets=Asset.objects.filter(workspace=m.workspace).exclude(campaign='').prefetch_related('versions')
+    for asset in campaign_assets.order_by('campaign','created_at'):
+        label=(asset.campaign or '').strip()
+        key=label.casefold()
+        if not key:continue
+        row=grouped.setdefault(key,{'name':label,'assets':[],'claims':{},'preferred':{},'disclaimers':[]})
+        version=asset.versions.filter(number=asset.latest_version).first()
+        item={'id':asset.id,'title':asset.title,'version':version.number if version else None,'status':asset.status,'ready':bool(version and version.extracted_text.strip())}
+        row['assets'].append(item)
+        if not item['ready']:continue
+        for sentence in re.split(r'(?<=[.!?])\s+|\n+',version.extracted_text):
+            sentence=' '.join(sentence.split()).strip()
+            fingerprint,numbers=_campaign_number_pattern(sentence)
+            claim={'asset_id':asset.id,'asset_title':asset.title,'version':version.number,'wording':sentence,'numbers':numbers}
+            if fingerprint:row['claims'].setdefault(fingerprint,[]).append(claim)
+            if disclaimer_pattern.search(sentence):row['disclaimers'].append(claim)
+            for rule in preferred_rules:
+                term=rule.text.strip();alternative=(rule.replacement or rule.title).strip()
+                if not term or not alternative or term.casefold()==alternative.casefold():continue
+                matched=re.search(re.escape(term),sentence,re.I);preferred_match=re.search(re.escape(alternative),sentence,re.I)
+                if not matched and not preferred_match:continue
+                wording_pattern=re.sub(r'\s+',' ',sentence.casefold())
+                wording_pattern=re.sub(re.escape(term)+'|'+re.escape(alternative),' <approved wording> ',wording_pattern,flags=re.I)
+                wording_pattern=' '.join(re.findall(r'[a-z]+|<approved wording>',wording_pattern))
+                item={**claim,'wording_state':'preferred' if preferred_match else 'alternative'}
+                row['preferred'].setdefault((rule.id,wording_pattern),{'title':rule.title,'variants':[]})['variants'].append(item)
+    response=[]
+    for row in grouped.values():
+        conflicts=[]
+        for fingerprint,claims in row['claims'].items():
+            by_asset={}
+            for claim in claims:by_asset.setdefault(claim['asset_id'],[]).append(claim)
+            asset_ids=list(by_asset)
+            for index,left_id in enumerate(asset_ids):
+                for right_id in asset_ids[index+1:]:
+                    left_rows=by_asset[left_id];right_rows=by_asset[right_id]
+                    left_numbers={tuple(x['numbers']) for x in left_rows};right_numbers={tuple(x['numbers']) for x in right_rows}
+                    if left_numbers==right_numbers:continue
+                    conflicts.append({'type':'numeric_claim_mismatch','explanation':'The same sentence pattern appears in different campaign assets with different numbers. Verify the approved value before publication.','left':left_rows[0],'right':right_rows[0]})
+        for _rule_id,pattern in row['preferred']:
+            entry=row['preferred'][(_rule_id,pattern)];by_asset={}
+            for item in entry['variants']:by_asset.setdefault(item['asset_id'],[]).append(item)
+            asset_ids=list(by_asset)
+            for index,left_id in enumerate(asset_ids):
+                for right_id in asset_ids[index+1:]:
+                    left=next((x for x in by_asset[left_id] if x['wording_state']=='preferred'),None)
+                    right=next((x for x in by_asset[right_id] if x['wording_state']!='preferred'),None)
+                    if not left or not right:
+                        left=next((x for x in by_asset[left_id] if x['wording_state']!='preferred'),None)
+                        right=next((x for x in by_asset[right_id] if x['wording_state']=='preferred'),None)
+                    if left and right:conflicts.append({'type':'preferred_wording_mismatch','explanation':f'Configured preferred wording rule “{entry["title"]}” appears differently across these related assets. Review whether the wording should be consistent.','left':left,'right':right})
+        disclosure_assets={item['id']:item for item in row['assets'] if item['ready']}
+        with_disclaimer={item['asset_id']:item for item in row['disclaimers']}
+        if with_disclaimer and len(with_disclaimer)<len(disclosure_assets):
+            present=next(iter(with_disclaimer.values()))
+            absent=next(item for item in disclosure_assets.values() if item['id'] not in with_disclaimer)
+            missing={**absent,'wording':'No recognized disclaimer marker detected in this asset version.'}
+            conflicts.append({'type':'disclaimer_presence_mismatch','explanation':'A possible disclosure marker appears in some campaign assets but not others. Formats may have different requirements; a reviewer should verify placement and wording.','left':present,'right':missing})
+        response.append({'name':row['name'],'asset_count':len(row['assets']),'ready_count':sum(1 for item in row['assets'] if item['ready']),'assets':row['assets'],'conflict_count':len(conflicts),'conflicts':conflicts})
+    response.sort(key=lambda item:item['name'].casefold())
+    return Response({'campaigns':response,'method':'Conservative campaign comparison: repeated sentence patterns with changed numbers, configured preferred-wording variants, and recognized disclosure-marker presence. Possible mismatches require human review and are not truth or legal-compliance decisions.'})
+
 @api_view(['GET','POST'])
 @parser_classes([MultiPartParser,FormParser,JSONParser])
 def assets(request,ws_id):
     m=member(request,ws_id)
     if not m:return Response({'error':'Workspace not found.'},status=404)
     if request.method=='GET':return maybe_paginate(request,[adata(a) for a in m.workspace.assets.order_by('-created_at')])
-    title=request.data.get('title','').strip(); content=request.data.get('content',''); upload=request.FILES.get('file')
+    title=request.data.get('title',''); content=request.data.get('content',''); upload=request.FILES.get('file')
+    campaign=request.data.get('campaign','');description=request.data.get('description','')
+    if not isinstance(title,str) or not isinstance(content,str) or not isinstance(campaign,str) or not isinstance(description,str):
+        return Response({'error':'Title, campaign, description and pasted content must be text.'},status=400)
+    title=title.strip()
     if not title:return Response({'error':'Title is required.'},status=400)
     if upload:
         if upload.size>20*1024*1024:return Response({'error':'Maximum upload size is 20 MB.'},status=400)
@@ -551,7 +635,7 @@ def assets(request,ws_id):
         if ext not in {'txt','md','pdf','docx','png','jpg','jpeg'}:return Response({'error':'Supported file types: TXT, PDF, DOCX, PNG and JPEG.'},status=400)
     if not content.strip() and not upload:return Response({'error':'Paste content or select a supported file.'},status=400)
     with transaction.atomic():
-        a=Asset.objects.create(workspace=m.workspace,title=title,campaign=request.data.get('campaign',''),description=request.data.get('description',''),created_by=request.user,source_file=upload if upload else None)
+        a=Asset.objects.create(workspace=m.workspace,title=title,campaign=campaign.strip(),description=description.strip(),created_by=request.user,source_file=upload if upload else None)
         ext=upload.name.lower().rsplit('.',1)[-1] if upload and '.' in upload.name else 'pasted_text'
         method={'txt':'plain_text','md':'plain_text','pdf':'pypdf','docx':'python_docx','png':'tesseract_ocr','jpg':'tesseract_ocr','jpeg':'tesseract_ocr'}.get(ext,'pasted_text')
         initial_content='' if upload else content
@@ -648,11 +732,16 @@ def review_action(request,ws_id,asset_id):
     if state not in dict(Review.STATES):return Response({'error':'Invalid review decision.'},status=400)
     if state in ['approved','rejected'] and m.role not in ['admin','manager','reviewer']:return Response({'error':'Reviewer permission required.'},status=403)
     v=a.versions.get(number=a.latest_version)
-    reason=request.data.get('reason','').strip()
+    reason=request.data.get('reason','')
+    if not isinstance(reason,str):return Response({'error':'Review reason must be text.'},status=400)
+    reason=reason.strip()
     if state in ['changes_requested','rejected'] and not reason:return Response({'error':'A reason is required for this review decision.'},status=400)
     if state=='approved' and v.findings.exclude(status__in=['resolved','dismissed']).exists() and not reason:
         return Response({'error':'Resolve open findings or record an approval override reason.'},status=400)
     with transaction.atomic():
+        previous=Review.objects.filter(version=v,reviewer=request.user).order_by('-created_at').first()
+        if previous and previous.state==state and previous.reason==reason:
+            return Response({'id':previous.id,'state':previous.state,'version':v.number,'duplicate':True},status=200)
         r=Review.objects.create(version=v,state=state,reviewer=request.user,reason=reason)
         AuditEvent.objects.create(workspace=m.workspace,actor=request.user,action='review_'+state,details={'asset':a.id,'version':v.number})
     return Response({'id':r.id,'state':r.state,'version':v.number},status=201)
@@ -664,6 +753,8 @@ def retry_analysis(request,ws_id,asset_id):
     version=a.versions.filter(number=a.latest_version).first()
     if not version:return Response({'error':'No content version is available to retry.'},status=400)
     latest=version.analysis_runs.order_by('-id').first()
+    if latest and latest.state in ['queued','processing']:
+        return Response({'asset_id':a.id,'version_id':version.id,'analysis_run_id':latest.id,'state':latest.state,'duplicate':True},status=202)
     if not latest or latest.state!='failed':return Response({'error':'Only failed analysis runs can be retried.'},status=409)
     with transaction.atomic():
         run=AnalysisRun.objects.create(version=version,state='queued')
@@ -675,6 +766,7 @@ def correction(request,ws_id,asset_id):
     m=member(request,ws_id); a=Asset.objects.filter(id=asset_id,workspace_id=ws_id).first()
     if not m or not a:return Response({'error':'Asset not found.'},status=404)
     content=request.data.get('content','')
+    if not isinstance(content,str):return Response({'error':'Corrected content must be text.'},status=400)
     if not content.strip():return Response({'error':'Corrected content is required.'},status=400)
     with transaction.atomic():
         previous=a.versions.filter(number=a.latest_version).first()
@@ -848,7 +940,15 @@ def integration_status(request,ws_id):
         pytesseract.get_tesseract_version(); ocr=True
     except Exception: ocr=False
     embedding_configured=bool(__import__('os').getenv('LLM_API_KEY') and __import__('os').getenv('LLM_EMBEDDING_MODEL'))
-    return Response({'llm_configured':configured(),'llm_provider':'OpenAI-compatible' if configured() else None,'embeddings_configured':embedding_configured,'evidence_retrieval':'workspace-scoped embeddings cosine ranking with lexical fallback' if embedding_configured else 'workspace-scoped lexical ranking of approved passages','ocr_available':ocr,'visual_color_summary':True,'logo_matching':True,'contrast_analysis':True,'contrast_method':'advisory estimate from high-confidence OCR text boxes'})
+    pgvector_available=False
+    if connection.vendor=='postgresql':
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+                pgvector_available=bool(cursor.fetchone()[0])
+        except Exception:pass
+    retrieval_mode='hybrid pgvector HNSW + lexical fusion' if embedding_configured and pgvector_available else 'hybrid JSON cosine + lexical fusion' if embedding_configured else 'workspace-scoped lexical ranking of approved passages'
+    return Response({'llm_configured':configured(),'llm_provider':'OpenAI-compatible' if configured() else None,'embeddings_configured':embedding_configured,'pgvector_available':pgvector_available,'retrieval_mode':retrieval_mode,'evidence_retrieval':retrieval_mode,'ocr_available':ocr,'visual_color_summary':True,'logo_matching':True,'contrast_analysis':True,'contrast_method':'advisory estimate from high-confidence OCR text boxes'})
 
 
 @api_view(['POST'])

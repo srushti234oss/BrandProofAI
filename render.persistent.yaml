@@ -1,0 +1,119 @@
+# Optional Round 3 production profile. Creates separately billed web, worker,
+# and PostgreSQL services. Private S3-compatible storage credentials are set
+# in Render's secret manager after creation. This does not alter render.yaml.
+services:
+  - type: web
+    name: brandproof-persistent
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: bash /app/render-web-start.sh
+    healthCheckPath: /
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: CORS_ALLOWED_ORIGINS
+        value: http://localhost:5173
+      - key: CSRF_TRUSTED_ORIGINS
+        value: http://localhost:5173
+      - key: DATABASE_URL
+        fromDatabase:
+          name: brandproof-round3-db
+          property: connectionString
+      - key: DJANGO_STORAGE_BACKEND
+        value: s3
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      - key: PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: openai/gpt-oss-20b
+
+  - type: worker
+    name: brandproof-analysis-worker
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python manage.py run_analysis_worker --poll-seconds 2 --stale-minutes 10 --max-attempts 3
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: DJANGO_SECRET_KEY
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: DJANGO_ALLOWED_HOSTS
+      - key: DATABASE_URL
+        fromDatabase:
+          name: brandproof-round3-db
+          property: connectionString
+      - key: DJANGO_STORAGE_BACKEND
+        value: s3
+      - key: AWS_STORAGE_BUCKET_NAME
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: AWS_STORAGE_BUCKET_NAME
+      - key: AWS_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: AWS_ACCESS_KEY_ID
+      - key: AWS_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: AWS_SECRET_ACCESS_KEY
+      - key: AWS_S3_REGION_NAME
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: AWS_S3_REGION_NAME
+      - key: AWS_S3_ENDPOINT_URL
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: AWS_S3_ENDPOINT_URL
+      - key: LLM_API_KEY
+        fromService:
+          type: web
+          name: brandproof-persistent
+          envVarKey: LLM_API_KEY
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: openai/gpt-oss-20b
+
+databases:
+  - name: brandproof-round3-db
+    plan: 0.1c-256mb
+    postgresMajorVersion: "18"

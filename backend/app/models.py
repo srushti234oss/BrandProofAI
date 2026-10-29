@@ -116,6 +116,23 @@ class GuidelineChunk(models.Model):
         unique_together=[('guideline','version','index')]
         indexes=[models.Index(fields=['guideline','version'])]
 
+class EmbeddingIndex(models.Model):
+    """Retrieval metadata; PostgreSQL adds an indexed pgvector column by migration."""
+    workspace=models.ForeignKey(Workspace,on_delete=models.CASCADE,related_name='embedding_indexes')
+    evidence_source=models.ForeignKey('EvidenceSource',null=True,blank=True,on_delete=models.CASCADE,related_name='embedding_indexes')
+    guideline_chunk=models.ForeignKey(GuidelineChunk,null=True,blank=True,on_delete=models.CASCADE,related_name='embedding_indexes')
+    embedding_model=models.CharField(max_length=160)
+    dimensions=models.PositiveIntegerField()
+    embedding_json=models.JSONField(default=list)
+    created_at=models.DateTimeField(auto_now_add=True)
+    updated_at=models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints=[
+            models.CheckConstraint(check=(models.Q(evidence_source__isnull=False,guideline_chunk__isnull=True)|models.Q(evidence_source__isnull=True,guideline_chunk__isnull=False)),name='embedding_index_one_source'),
+            models.UniqueConstraint(fields=['evidence_source','embedding_model'],name='unique_evidence_embedding_model'),
+            models.UniqueConstraint(fields=['guideline_chunk','embedding_model'],name='unique_guideline_embedding_model'),
+        ]
+
 class ApprovedExample(models.Model):
     guideline=models.ForeignKey(Guideline,on_delete=models.CASCADE,related_name='examples')
     text=models.TextField()
