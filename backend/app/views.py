@@ -339,20 +339,25 @@ def run_configured_ai(v, ws):
         # can contain request details. HTTPError status codes distinguish common
         # setup problems such as an invalid key, model, or rate limit.
         from urllib.error import HTTPError
+        if isinstance(exc, TimeoutError):
+            return ['Configured AI analysis timed out after 90 seconds. Retry the analysis later; deterministic unverified-claim triage was retained.']
         if isinstance(exc, HTTPError):
             status = exc.code
+            from urllib.parse import urlsplit
+            host = urlsplit(__import__('os').getenv('LLM_BASE_URL', 'https://api.openai.com/v1')).hostname or ''
+            provider = 'Gemini' if host == 'generativelanguage.googleapis.com' else ('Groq' if host.endswith('groq.com') else ('OpenAI' if host.endswith('openai.com') else 'configured AI provider'))
             if status in (401, 403):
-                detail = f'Groq rejected the API key or its access (HTTP {status}). Check that LLM_API_KEY is an active Groq key.'
+                detail = f'{provider} rejected the API key or its access (HTTP {status}). Check LLM_API_KEY and model permissions.'
             elif status == 404:
-                detail = 'Groq could not find the API route or model (HTTP 404). Check LLM_BASE_URL and LLM_MODEL.'
+                detail = f'{provider} could not find the API route or model (HTTP 404). Check LLM_BASE_URL and LLM_MODEL.'
             elif status == 429:
-                detail = 'Groq rate limit or usage quota reached (HTTP 429). Check Groq Console limits/billing and retry later.'
+                detail = f'{provider} rate limit or usage quota reached (HTTP 429). Check provider limits and retry later.'
             elif status == 400:
-                detail = 'Groq rejected the analysis request (HTTP 400). Check the model and request compatibility.'
+                detail = f'{provider} rejected the analysis request (HTTP 400). Check the model and request compatibility.'
             elif status >= 500:
-                detail = f'Groq had a temporary server error (HTTP {status}). Retry the review later.'
+                detail = f'{provider} had a temporary server error (HTTP {status}). Retry the review later.'
             else:
-                detail = f'Groq request failed (HTTP {status}). Check the provider configuration.'
+                detail = f'{provider} request failed (HTTP {status}). Check the provider configuration.'
             return [f'Configured AI analysis failed: {detail} Deterministic unverified-claim triage was retained.']
         return [f'Configured AI analysis failed ({type(exc).__name__}); deterministic unverified-claim triage was retained.']
     rule_map={r.id:r for r in rules}; evidence_map={e.id:e for e in evidence};chunk_map={chunk.id:chunk for chunk in guideline_chunks};warnings=[retrieval_warning] if retrieval_warning else []

@@ -15,6 +15,21 @@ class BrandProofApiTests(TestCase):
         run=AnalysisRun.objects.get(version__asset_id=response.data['id'],version__number=response.data['latest_version'])
         process_analysis_run(run.id)
         return next(row for row in self.client.get(f'/api/v1/workspaces/{self.workspace.id}/assets/').data if row['id']==response.data['id'])
+    def test_gemini_chat_request_uses_low_reasoning_and_openai_compatible_route(self):
+        import json
+        from unittest.mock import patch
+        from .ai import analyze
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+            def read(self): return json.dumps({'choices':[{'message':{'content':'{"claims":[],"tone_findings":[]}'}}]}).encode()
+        with patch.dict('os.environ',{'LLM_API_KEY':'test-key','LLM_MODEL':'gemini-3.8-flash','LLM_BASE_URL':'https://generativelanguage.googleapis.com/v1beta/openai/'}), patch('urllib.request.urlopen',return_value=Response()) as urlopen:
+            result=analyze('Test content',[],[])
+        request=urlopen.call_args.args[0]
+        body=json.loads(request.data)
+        self.assertEqual(request.full_url,'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+        self.assertEqual(body['reasoning_effort'],'low')
+        self.assertEqual(result,{'claims':[],'tone_findings':[]})
     def test_synthetic_evaluation_dataset_has_labelled_claim_and_visual_cases(self):
         import json
         from pathlib import Path
