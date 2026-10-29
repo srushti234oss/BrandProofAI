@@ -6,6 +6,39 @@ import urllib.request
 
 class ProviderNotConfigured(Exception): pass
 
+def _parse_analysis(content):
+    if not isinstance(content,str) or not content.strip():
+        raise ValueError('The AI provider returned an empty analysis response.')
+    text=content.strip()
+    if text.startswith('```'):
+        text=text.split('\n',1)[1] if '\n' in text else text[3:]
+        if text.rstrip().endswith('```'):
+            text=text.rstrip()[:-3].strip()
+    try:
+        result=json.loads(text)
+    except json.JSONDecodeError as exc:
+        # Some OpenAI-compatible providers wrap JSON in a short preamble even
+        # when JSON mode was requested. Recover only a complete JSON object.
+        start=text.find('{');end=text.rfind('}')
+        if start<0 or end<=start:
+            raise ValueError('The AI provider returned invalid JSON; expected a structured analysis object.') from exc
+        try:
+            result=json.loads(text[start:end+1])
+        except json.JSONDecodeError as nested:
+            raise ValueError('The AI provider returned invalid JSON; expected a structured analysis object.') from nested
+    if isinstance(result,dict) and isinstance(result.get('result'),dict):
+        result=result['result']
+    if not isinstance(result,dict):
+        raise ValueError('The AI provider response was not a JSON object.')
+    for field in ('claims','tone_findings'):
+        value=result.get(field,[])
+        if value is None:
+            value=[]
+        if not isinstance(value,list):
+            raise ValueError(f'The AI provider returned an invalid `{field}` field; expected a list.')
+        result[field]=value
+    return result
+
 def configured():
     return bool(os.getenv('LLM_API_KEY') and os.getenv('LLM_MODEL'))
 
@@ -45,7 +78,8 @@ def analyze(text, rules, evidence, guideline_chunks=(), examples=()):
     body=json.dumps(request_body).encode()
     request=urllib.request.Request(base+'/chat/completions',data=body,headers={'Authorization':'Bearer '+os.environ['LLM_API_KEY'],'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(request,timeout=90) as response: raw=json.loads(response.read())
-    result=json.loads(raw['choices'][0]['message']['content'])
-    if not isinstance(result,dict) or not isinstance(result.get('claims',[]),list) or not isinstance(result.get('tone_findings',[]),list):
-        raise ValueError('Provider response did not match the required structured analysis schema.')
-    return result
+    try:
+        content=raw['choices'][0]['message']['content']
+    except (KeyError,IndexError,TypeError) as exc:
+        raise ValueError('The AI provider response was missing its message content.') from exc
+    return _parse_analysis(content)

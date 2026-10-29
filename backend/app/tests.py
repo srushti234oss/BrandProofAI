@@ -30,6 +30,14 @@ class BrandProofApiTests(TestCase):
         self.assertEqual(request.full_url,'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
         self.assertEqual(body['reasoning_effort'],'low')
         self.assertEqual(result,{'claims':[],'tone_findings':[]})
+    def test_ai_parser_accepts_fenced_or_wrapped_json_and_normalizes_null_lists(self):
+        from .ai import _parse_analysis
+        self.assertEqual(_parse_analysis('```json\n{"result":{"claims":null,"tone_findings":[]}}\n```'),{'claims':[],'tone_findings':[]})
+        self.assertEqual(_parse_analysis('Analysis follows: {"claims":[],"tone_findings":[]}'),{'claims':[],'tone_findings':[]})
+    def test_ai_parser_reports_invalid_structured_response_clearly(self):
+        from .ai import _parse_analysis
+        with self.assertRaisesRegex(ValueError,'invalid JSON'):
+            _parse_analysis('Here is my answer, but no JSON object.')
     def test_synthetic_evaluation_dataset_has_labelled_claim_and_visual_cases(self):
         import json
         from pathlib import Path

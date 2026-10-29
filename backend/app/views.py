@@ -359,6 +359,11 @@ def run_configured_ai(v, ws):
             else:
                 detail = f'{provider} request failed (HTTP {status}). Check the provider configuration.'
             return [f'Configured AI analysis failed: {detail} Deterministic unverified-claim triage was retained.']
+        if isinstance(exc, ValueError):
+            # Structured-output failures are often provider formatting/schema
+            # mismatches. Surface the parser's safe, actionable explanation.
+            detail = str(exc).strip() or 'The provider returned an invalid analysis response.'
+            return [f'Configured AI analysis failed: {detail} Deterministic unverified-claim triage was retained.']
         return [f'Configured AI analysis failed ({type(exc).__name__}); deterministic unverified-claim triage was retained.']
     rule_map={r.id:r for r in rules}; evidence_map={e.id:e for e in evidence};chunk_map={chunk.id:chunk for chunk in guideline_chunks};warnings=[retrieval_warning] if retrieval_warning else []
     for row in result.get('claims',[])[:100]:
