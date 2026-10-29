@@ -29,3 +29,5 @@ main{margin-left:250px;background:transparent}.topbar{position:sticky;top:0;z-in
 @media(max-width:950px){.sidebar{width:205px}main{margin-left:205px}.content{padding:27px 22px 48px}.metrics{gap:10px}.panel{padding:17px}.topbar{padding:0 22px}}
 @media(max-width:650px){.sidebar{width:58px;padding:17px 8px}.brandmark{width:30px;height:30px}.workspace-switch{background:#ffffff0c;border-color:#ffffff12}.nav button.active:before{left:-8px}.topbar{padding:0 13px}.content{padding:22px 13px 40px}.pagehead h1{font-size:28px}.metrics{gap:8px}.metric{padding:13px 12px}.metric strong{font-size:23px}.panel{padding:15px}.detailmain{padding:14px}.finding{padding-left:9px}.auth{background:#0b1722}.authcard{border-radius:13px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.modal-error{display:flex;align-items:flex-start;gap:9px;margin:0 0 14px;font-size:11px;overflow-wrap:anywhere}.modal-error span{min-width:0}
