@@ -115,3 +115,41 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 .authcard{background:linear-gradient(145deg,#f7fff0c9,#e3f5ed9e);backdrop-filter:blur(34px) saturate(155%);-webkit-backdrop-filter:blur(34px) saturate(155%);}
 @media(max-width:600px){.brand-intro__logo-window{width:clamp(136px,43vw,160px);height:clamp(136px,43vw,160px)}}
 @media(max-height:650px) and (min-width:601px){.brand-intro__logo-window{width:148px;height:148px}}
+
+/* Workspace polish: glass-like depth without changing any existing card fills. */
+.app .content .metric,
+.app .content .panel,
+.app .content .insight-card{
+  -webkit-backdrop-filter:blur(14px) saturate(125%);
+  backdrop-filter:blur(14px) saturate(125%);
+  box-shadow:0 8px 26px #163b2c0c,inset 0 1px 0 #ffffffb8;
+  transition:transform .32s cubic-bezier(.2,.75,.25,1),box-shadow .32s ease,border-color .32s ease;
+}
+.app .content .metric:hover,
+.app .content .panel:hover,
+.app .content .insight-card:hover{
+  box-shadow:0 16px 38px #163b2c16,inset 0 1px 0 #ffffffd4;
+}
+
+/* A coordinated, gentle drop-in gives the dashboard a clear arrival sequence. */
+.app .content>.pagehead{animation:bp-drop-in .55s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.metrics>.metric{animation:bp-drop-in .62s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.metrics>.metric:nth-child(1){animation-delay:.05s}
+.app .content>.metrics>.metric:nth-child(2){animation-delay:.12s}
+.app .content>.metrics>.metric:nth-child(3){animation-delay:.19s}
+.app .content>.metrics>.metric:nth-child(4){animation-delay:.26s}
+.app .content>.grid>.panel{animation:bp-drop-in .66s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.grid>.panel:nth-child(1){animation-delay:.26s}
+.app .content>.grid>.panel:nth-child(2){animation-delay:.34s}
+.app .content>.bottomgrid>*{animation:bp-drop-in .68s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.bottomgrid>*:nth-child(1){animation-delay:.4s}
+.app .content>.bottomgrid>*:nth-child(2){animation-delay:.48s}
+.app .content .recent .assetrow{animation:bp-row-settle .42s cubic-bezier(.2,.75,.25,1) both}
+.app .content .recent .assetrow:nth-of-type(1){animation-delay:.3s}
+.app .content .recent .assetrow:nth-of-type(2){animation-delay:.36s}
+.app .content .recent .assetrow:nth-of-type(3){animation-delay:.42s}
+.app .content .recent .assetrow:nth-of-type(4){animation-delay:.48s}
+.app .content .recent .assetrow:nth-of-type(5){animation-delay:.54s}
+@keyframes bp-drop-in{from{opacity:0;transform:translateY(-16px) scale(.992);filter:blur(2px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+@keyframes bp-row-settle{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.app .content>.pagehead,.app .content>.metrics>.metric,.app .content>.grid>.panel,.app .content>.bottomgrid>*,.app .content .recent .assetrow{animation:none!important}}
