@@ -33,7 +33,45 @@ main{margin-left:250px;background:transparent}.topbar{position:sticky;top:0;z-in
 .modal-error{display:flex;align-items:flex-start;gap:9px;margin:0 0 14px;font-size:11px;overflow-wrap:anywhere}.modal-error span{min-width:0}
 
 /* BrandProof startup sequence */
-.brand-intro{position:fixed;inset:0;z-index:20;display:grid;place-items:center;align-content:center;overflow:hidden;background:radial-gradient(ellipse at 50% 42%,#f0f7f1 0%,#e5f0e9 54%,#d6e6dc 100%);animation:bp-intro-in .55s ease-out both}.brand-intro__logo{display:block;width:min(560px,84vw);height:auto;object-fit:contain;position:relative;z-index:1;mix-blend-mode:multiply;animation:bp-logo-arrive 1.25s cubic-bezier(.2,.8,.2,1) both;filter:drop-shadow(0 18px 30px #193b3024);transform-origin:50% 55%}.brand-intro__loading{display:flex;align-items:center;gap:10px;margin-top:-18px;color:#476659;font-size:11px;font-weight:600;letter-spacing:.08em;animation:bp-fade .5s .35s both}.brand-intro__spinner{width:17px;height:17px;border:2px solid #c8d9cc;border-top-color:#1b755b;border-right-color:#b69251;border-radius:50%;animation:bp-intro-spin .8s linear infinite}.brand-intro__signature{position:absolute;bottom:9vh;color:#7d907e;font-size:9px;letter-spacing:.22em;font-weight:700;animation:bp-fade .5s .55s both}.brand-intro__orb{position:absolute;top:50%;left:50%;width:min(560px,82vw);aspect-ratio:1;border:1px solid #60866b17;border-radius:50%;animation:bp-orbit-in 1.4s ease-out both;pointer-events:none}.brand-intro__orb--one{transform:translate(-50%,-50%) scale(.73) rotate(-20deg);border-color:#67907120}.brand-intro__orb--two{width:min(710px,96vw);border-color:#bb98501a;animation-delay:.12s}.brand-intro.is-leaving{animation:bp-intro-out .45s ease-in both;pointer-events:none}.brand-intro.is-leaving .brand-intro__logo{animation:bp-logo-exit .45s ease-in both}.brand-intro.is-leaving .brand-intro__loading,.brand-intro.is-leaving .brand-intro__signature{opacity:0;transition:opacity .18s ease}
-@keyframes bp-intro-in{from{opacity:0}to{opacity:1}}@keyframes bp-intro-out{to{opacity:0;visibility:hidden}}@keyframes bp-logo-arrive{0%{opacity:0;transform:translateY(24px) scale(.9) rotateX(7deg);filter:blur(8px) drop-shadow(0 0 0 #193b3000)}58%{opacity:1;filter:blur(0) drop-shadow(0 18px 30px #193b3024)}78%{transform:translateY(-4px) scale(1.012) rotateX(0)}100%{transform:translateY(0) scale(1) rotateX(0)}}@keyframes bp-logo-exit{to{transform:translateY(-8px) scale(1.015);opacity:0}}@keyframes bp-intro-spin{to{transform:rotate(360deg)}}@keyframes bp-orbit-in{from{opacity:0;transform:translate(-50%,-50%) scale(.88) rotate(-8deg)}to{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}}
-@media(max-width:600px){.brand-intro__logo{width:min(500px,94vw)}.brand-intro__loading{font-size:10px}.brand-intro__signature{bottom:7vh;font-size:8px;letter-spacing:.16em}}
-@media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro__logo,.brand-intro__orb,.brand-intro__spinner{animation-duration:.01ms!important;animation-iteration-count:1!important}.brand-intro.is-leaving .brand-intro__loading,.brand-intro.is-leaving .brand-intro__signature{transition-duration:.01ms!important}}
+html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
+.brand-intro{--intro-mint:#89edc2;--intro-gold:#e4c47d;position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;overflow:hidden;padding:22px 16px;background:radial-gradient(ellipse at 50% 42%,#174c40 0%,#103b35 40%,#09282b 100%);color:#e9fff4;animation:bp-intro-in .5s ease-out both}
+.brand-intro:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 0 34%,#071d2055 100%),linear-gradient(120deg,transparent 0 48%,#96eac00a 50%,transparent 52%);}
+.brand-intro__stage{position:relative;isolation:isolate;display:grid;place-items:center;width:min(520px,78vw,66vh);aspect-ratio:1;border-radius:50%;}
+.brand-intro__stage:before,.brand-intro__stage:after{content:"";position:absolute;inset:3%;border:1px solid #9be9c22b;border-radius:50%;pointer-events:none;animation:bp-ring 4.8s ease-in-out infinite}
+.brand-intro__stage:after{inset:10%;border-color:#dabe7833;animation-delay:-2.4s;animation-direction:reverse}
+.brand-intro__orb{position:absolute;inset:0;border:1px solid #89edc222;border-radius:50%;pointer-events:none;animation:bp-orbit-in 1.25s ease-out both}
+.brand-intro__orb--one{inset:7%;border-color:#8de8c32b;transform:rotate(-18deg)}
+.brand-intro__orb--two{inset:-3%;border-color:#d5b96b22;animation-delay:.1s;transform:rotate(18deg)}
+.brand-intro__stage-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:5px;width:100%;animation:bp-logo-arrive .9s cubic-bezier(.2,.8,.2,1) both}
+.brand-intro__logo{display:block;width:min(390px,72vw);height:auto;object-fit:contain;mix-blend-mode:screen;filter:invert(1) hue-rotate(180deg) saturate(1.15);transform-origin:50% 55%;}
+.brand-intro__demo{position:relative;width:min(310px,79%);overflow:hidden;padding:13px 15px 12px;border:1px solid #8ae4bb47;border-radius:13px;background:linear-gradient(145deg,#0a2929ed,#103a35e8);box-shadow:0 16px 44px #03171566, inset 0 1px #c5ffe411;animation:bp-demo-arrive .75s .42s both;}
+.brand-demo__top,.brand-demo__result{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand-demo__top{font-size:8px;font-weight:800;letter-spacing:.14em;color:#a2e9c3}
+.brand-demo__top>span{display:flex;align-items:center;gap:6px}
+.brand-demo__top i{width:6px;height:6px;border-radius:50%;background:#75e7ae;box-shadow:0 0 0 4px #75e7ae20;animation:bp-live 1.2s ease-in-out infinite}
+.brand-demo__top small{font:700 7px 'DM Sans',sans-serif;letter-spacing:.1em;color:#9cb7ab}
+.brand-intro__demo p{margin:9px 0 10px;color:#f2f8ef;font:500 14px/1.35 'Playfair Display',serif;letter-spacing:.01em}
+.brand-demo__scan{position:relative;height:2px;background:#85deb51b;overflow:hidden;border-radius:4px}
+.brand-demo__scan span{position:absolute;inset:0 auto 0 -35%;width:35%;background:linear-gradient(90deg,transparent,var(--intro-mint),#f4d98d,transparent);box-shadow:0 0 12px #8ef0c0;animation:bp-scan 1.45s ease-in-out infinite}
+.brand-demo__result{justify-content:flex-start;margin-top:9px;color:#a6c4b7;font-size:8px;letter-spacing:.025em}
+.brand-demo__result svg{color:#8ce5b8;flex:none}
+.brand-demo__result b{margin-left:auto;color:#ecd28c;font-size:7px;letter-spacing:.1em}
+.brand-intro__progress{position:relative;width:min(250px,62vw);height:3px;margin-top:28px;overflow:hidden;border-radius:5px;background:#d9f4e11f;box-shadow:0 0 0 1px #b2e7cd0c;animation:bp-fade .5s .6s both}
+.brand-intro__progress span{position:absolute;inset:0 auto 0 -36%;width:36%;border-radius:5px;background:linear-gradient(90deg,transparent,#71e7ad 65%,#e6d08d);box-shadow:0 0 15px #7deab766;animation:bp-progress 1.65s cubic-bezier(.58,.02,.42,.98) .55s infinite}
+.brand-intro__signature{position:relative;margin:15px 0 0;color:#b4d8c7;font-size:9px;letter-spacing:.14em;font-weight:700;text-align:center;text-transform:uppercase;animation:bp-fade .5s .72s both}
+.brand-intro.is-leaving{animation:bp-intro-out .48s ease-in both;pointer-events:none}
+.brand-intro.is-leaving .brand-intro__stage-content,.brand-intro.is-leaving .brand-intro__progress,.brand-intro.is-leaving .brand-intro__signature{animation:bp-fade-out .35s ease-in both}
+@keyframes bp-intro-in{from{opacity:0}to{opacity:1}}
+@keyframes bp-intro-out{to{opacity:0;visibility:hidden}}
+@keyframes bp-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bp-fade-out{to{opacity:0;transform:translateY(-5px)}}
+@keyframes bp-logo-arrive{0%{opacity:0;transform:translateY(18px) scale(.94)}72%{opacity:1;transform:translateY(-3px) scale(1.015)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes bp-demo-arrive{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes bp-orbit-in{from{opacity:0;transform:scale(.9) rotate(-8deg)}to{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes bp-ring{0%,100%{opacity:.5;transform:scale(.985)}50%{opacity:1;transform:scale(1.015)}}
+@keyframes bp-scan{0%{transform:translateX(0)}100%{transform:translateX(390%)}}
+@keyframes bp-progress{0%{transform:translateX(0)}100%{transform:translateX(380%)}}
+@keyframes bp-live{50%{opacity:.55;box-shadow:0 0 0 7px #75e7ae0d}}
+@media(max-width:600px){.brand-intro{gap:0}.brand-intro__stage{width:min(90vw,62vh)}.brand-intro__logo{width:min(340px,76vw)}.brand-intro__demo{width:82%;padding:11px 12px}.brand-intro__signature{max-width:290px;font-size:8px;line-height:1.6;letter-spacing:.1em}}
+@media(max-height:650px) and (min-width:601px){.brand-intro__stage{width:min(420px,62vh)}.brand-intro__logo{width:min(330px,68vw)}.brand-intro__demo{padding:9px 12px}.brand-intro__progress{margin-top:15px}.brand-intro__signature{margin-top:9px}}
+@media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro__stage:before,.brand-intro__stage:after,.brand-intro__orb,.brand-intro__stage-content,.brand-intro__demo,.brand-intro__progress,.brand-intro__progress span,.brand-demo__scan span,.brand-demo__top i{animation-duration:.01ms!important;animation-iteration-count:1!important}.brand-intro__progress span{left:0;width:68%;transform:none}}
