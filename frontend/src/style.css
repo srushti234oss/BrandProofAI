@@ -308,6 +308,46 @@ nav button{font-size:13px}
 }
 .guideline>div:nth-child(2),
 .guideline>div:nth-child(3){grid-column:2;min-width:0}
+
+/* Shared glass surface for cards throughout every workspace screen. */
+.app .content :is(.panel,.metric,.insight-card,.guideline,.clarityrow,.campaign-panel,.campaign-conflict,.campaign-pair,.claimrow,.finding,.versionpanel,.config-summary,.diff-preview,.suggestion,.rule-ref,.evidence-ref,.assetrow,.member-row,.settings,.empty,.notice){
+  -webkit-backdrop-filter:blur(16px) saturate(135%);
+  backdrop-filter:blur(16px) saturate(135%);
+  border-color:rgba(255,255,255,.72);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 10px 26px rgba(24,63,48,.075);
+}
+.app .content :is(.panel,.metric,.versionpanel,.config-summary,.diff-preview,.empty){
+  background:rgba(255,255,255,.68);
+}
+.app .content .insight-card{
+  background:linear-gradient(135deg,rgba(233,243,235,.76),rgba(239,244,232,.66));
+  border-color:rgba(207,225,210,.78);
+}
+.app .content .guideline,.app .content .clarityrow,.app .content .campaign-panel,
+.app .content .campaign-conflict,.app .content .claimrow,.app .content .finding,
+.app .content .assetrow,.app .content .member-row,.app .content .settings{
+  background-color:rgba(255,255,255,.48);
+}
+.app .content .campaign-pair,.app .content .evidence-ref{
+  background-color:rgba(237,246,240,.7);
+}
+.app .content .suggestion{background:linear-gradient(135deg,rgba(240,247,241,.76),rgba(247,248,243,.66))}
+.app .content .rule-ref{background:rgba(237,246,240,.72)}
+.app .content .notice{background:rgba(255,246,232,.78);border-color:rgba(240,220,172,.8)}
+.app .content .assetrow:hover{background:rgba(247,251,248,.84)}
+.sidebar :is(.workspace-switch,.help){
+  -webkit-backdrop-filter:blur(14px) saturate(125%);
+  backdrop-filter:blur(14px) saturate(125%);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 22px rgba(3,20,26,.12);
+}
+.sidebar .workspace-switch{background:rgba(255,255,255,.075)}
+.sidebar .help{background:rgba(220,239,225,.09)}
+.modal,.tour-card,.authcard{
+  -webkit-backdrop-filter:blur(22px) saturate(140%);
+  backdrop-filter:blur(22px) saturate(140%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82),0 22px 60px rgba(18,48,37,.16);
+}
 .guideline>div:nth-child(3){
   border-top:1px solid #e9efeb;
   margin-top:2px;
