@@ -47,7 +47,13 @@ def embed(text):
     if not os.getenv('LLM_API_KEY') or not model:
         raise ProviderNotConfigured('LLM_API_KEY and LLM_EMBEDDING_MODEL are not configured.')
     base=os.getenv('LLM_BASE_URL','https://api.openai.com/v1').rstrip('/')
-    payload=json.dumps({'model':model,'input':(text or '')[:8000]}).encode()
+    embedding_request={'model':model,'input':(text or '')[:8000]}
+    # The PostgreSQL HNSW column is vector(1536). Gemini supports this
+    # OpenAI-compatible `dimensions` option; without it Gemini returns its
+    # default 3072-dimensional vector and retrieval must fall back to JSON.
+    if 'generativelanguage.googleapis.com' in base:
+        embedding_request['dimensions']=1536
+    payload=json.dumps(embedding_request).encode()
     request=urllib.request.Request(base+'/embeddings',data=payload,headers={'Authorization':'Bearer '+os.environ['LLM_API_KEY'],'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(request,timeout=25) as response:raw=json.loads(response.read())
     vector=raw.get('data',[{}])[0].get('embedding')
