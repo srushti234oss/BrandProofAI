@@ -114,8 +114,17 @@ def workspaces(request):
 def workspace_settings(request,ws_id):
     m=member(request,ws_id)
     if not m:return Response({'error':'Workspace not found.'},status=404)
-    if request.method=='GET':return Response({'retention_days':m.workspace.retention_days,'can_manage_retention':m.role=='admin'})
+    if request.method=='GET':return Response({'name':m.workspace.name,'retention_days':m.workspace.retention_days,'can_manage_retention':m.role=='admin'})
     if m.role!='admin':return Response({'error':'Workspace admin permission required.'},status=403)
+    if 'name' in request.data:
+        name=str(request.data.get('name') or '').strip()
+        if not name:return Response({'error':'Workspace name is required.'},status=400)
+        if len(name)>160:return Response({'error':'Workspace name must be 160 characters or fewer.'},status=400)
+        previous_name=m.workspace.name
+        m.workspace.name=name
+        m.workspace.save(update_fields=['name'])
+        AuditEvent.objects.create(workspace=m.workspace,actor=request.user,action='workspace_renamed',details={'from':previous_name,'to':name})
+        return Response({'id':m.workspace.id,'name':m.workspace.name,'retention_days':m.workspace.retention_days,'can_manage_retention':True})
     value=request.data.get('retention_days')
     if value in ('',None):m.workspace.retention_days=None
     else:
