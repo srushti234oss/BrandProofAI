@@ -82,3 +82,36 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 @media(max-width:600px){.brand-intro{gap:0}.brand-intro__stage{width:min(90vw,62vh)}.brand-intro__logo-circle{width:142px}.brand-intro__quote{font-size:12px}.brand-intro__signature{max-width:290px;font-size:8px;line-height:1.6;letter-spacing:.1em}}
 @media(max-height:650px) and (min-width:601px){.brand-intro__stage{width:min(420px,62vh)}.brand-intro__logo-circle{width:128px}.brand-intro__progress{margin-top:15px}.brand-intro__signature{margin-top:9px}}
 @media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro__stage:before,.brand-intro__stage:after,.brand-intro__orb,.brand-intro__stage-content,.brand-intro__loader,.brand-intro__quote,.brand-intro__demo,.brand-intro__progress,.brand-intro__progress span,.brand-demo__scan span,.brand-demo__top i{animation-duration:.01ms!important;animation-iteration-count:1!important}.brand-intro__progress span{left:0;width:68%;transform:none}}
+
+/* Login glass treatment and judge demo access */
+.auth{position:relative;isolation:isolate;overflow:hidden;grid-template-columns:1.08fr .92fr;min-height:100vh;background:radial-gradient(ellipse at 18% 18%,#1d4d45 0%,#12333a 38%,#0b1722 80%);}
+.auth:before,.auth:after{content:"";position:absolute;z-index:-1;border:1px solid #a9efd01d;border-radius:50%;pointer-events:none}
+.auth:before{width:600px;height:600px;left:-270px;bottom:-340px;box-shadow:0 0 0 35px #a9efd009,0 0 0 82px #a9efd006}
+.auth:after{width:380px;height:380px;right:-160px;top:-210px;box-shadow:0 0 0 30px #a9efd008,0 0 0 70px #a9efd005}
+.auth>section{z-index:0;display:flex;flex-direction:column;justify-content:center;min-height:100vh;padding:10vh clamp(32px,9vw,150px);background:transparent}
+.auth .brand{gap:13px;padding:0 0 48px;color:#f5fff9;font-size:24px;letter-spacing:-.7px}
+.auth-brand-icon{width:48px;height:48px;object-fit:contain;filter:drop-shadow(0 6px 16px #031a17aa)}
+.auth h1{font-size:clamp(48px,5.2vw,66px);max-width:650px;line-height:1.06;letter-spacing:-1.3px}
+.auth>section>.muted{max-width:440px;font-size:16px;line-height:1.7;color:#c0d4ce}
+.auth>section>.eyebrow{color:#9be3be;font-size:11px;letter-spacing:2px}
+.authcard{position:relative;z-index:1;width:min(460px,86%);padding:clamp(30px,4vw,46px);background:linear-gradient(145deg,#f7fff0df,#e3f5edba);border:1px solid #edfff0a3;border-radius:22px;backdrop-filter:blur(28px) saturate(145%);-webkit-backdrop-filter:blur(28px) saturate(145%);box-shadow:0 32px 90px #03181655,inset 0 1px #ffffffc2;animation:bp-modal .55s cubic-bezier(.2,.8,.2,1) both}
+.authcard h2{font-size:29px;line-height:1.15;margin:11px 0 27px}
+.authcard label{font-size:11px;color:#405650;margin-bottom:17px}
+.authcard label input{background:#ffffffa8;border-color:#ffffffd9;border-radius:10px;box-shadow:inset 0 1px 2px #203a2c0b}
+.authcard label input:focus{background:#fff;border-color:#5ab68b;box-shadow:0 0 0 4px #5ab68b20}
+.demo-access{display:grid;gap:9px;margin:-8px 0 19px;padding:13px 14px;border:1px solid #ffffffab;border-radius:12px;background:#ffffff74;color:#26443a}
+.demo-access__eyebrow{color:#51826a;font-size:9px;font-weight:800;letter-spacing:1.4px}
+.demo-access>div{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px}
+.demo-access code{max-width:64%;overflow-wrap:anywhere;color:#314a41;font:600 11px 'DM Sans',sans-serif;text-align:right}
+.demo-access button{justify-self:start;border:0;background:transparent;padding:2px 0;color:#167454;font-size:10px;font-weight:700}
+.demo-access p{margin:0;color:#667a70;font-size:10px;line-height:1.5}
+@media(max-width:850px){.auth{grid-template-columns:1fr}.auth>section{min-height:auto;padding:8vh 9vw 3vh}.auth .brand{padding-bottom:30px}.auth h1{font-size:clamp(40px,8vw,56px)}.authcard{margin:2vh auto 8vh;width:min(470px,88%)}}
+@media(max-width:650px){.auth>section{display:flex}.auth .brand{font-size:21px}.auth-brand-icon{width:40px;height:40px}.auth h1{font-size:42px}.auth>section>.muted{font-size:14px}.authcard h2{font-size:25px}}
+
+/* The splash markup uses a window around the transparent emblem; clip the old
+   square source to the inner ring and keep its background in the brand palette. */
+.brand-intro__logo-window{position:relative;width:clamp(150px,20vw,184px);height:clamp(150px,20vw,184px);overflow:hidden;display:grid;place-items:center;border:1px solid #8de8c359;border-radius:50%;background:radial-gradient(circle at 35% 28%,#20725d,#10463d 58%,#0a2f30 100%);box-shadow:0 0 0 7px #95efc00b,0 12px 34px #03171570,inset 0 1px #d7ffeb30;}
+.brand-intro__logo-window img{display:block;width:88%;height:88%;object-fit:contain;mix-blend-mode:normal;filter:drop-shadow(0 5px 14px #03171538);}
+.authcard{background:linear-gradient(145deg,#f7fff0c9,#e3f5ed9e);backdrop-filter:blur(34px) saturate(155%);-webkit-backdrop-filter:blur(34px) saturate(155%);}
+@media(max-width:600px){.brand-intro__logo-window{width:clamp(136px,43vw,160px);height:clamp(136px,43vw,160px)}}
+@media(max-height:650px) and (min-width:601px){.brand-intro__logo-window{width:148px;height:148px}}

@@ -39,6 +39,8 @@ if os.getenv('EMAIL_HOST'):
     EMAIL_USE_SSL=os.getenv('EMAIL_USE_SSL','false').lower()=='true'
     DEFAULT_FROM_EMAIL=os.getenv('DEFAULT_FROM_EMAIL',EMAIL_HOST_USER or 'brandproof@localhost')
 PUBLIC_APP_URL=os.getenv('PUBLIC_APP_URL','http://localhost:5173').rstrip('/')
+DEMO_USERNAME=os.getenv('DEMO_USERNAME','').strip()
+DEMO_PASSWORD=os.getenv('DEMO_PASSWORD','')
 if os.getenv('DJANGO_STORAGE_BACKEND','local').lower()=='s3':
     STORAGES={'default':{'BACKEND':'storages.backends.s3.S3Storage'},'staticfiles':{'BACKEND':'django.contrib.staticfiles.storage.StaticFilesStorage'}}
     AWS_STORAGE_BUCKET_NAME=os.environ['AWS_STORAGE_BUCKET_NAME']

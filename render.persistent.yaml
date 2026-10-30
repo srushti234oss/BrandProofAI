@@ -51,6 +51,10 @@ services:
         value: https://api.groq.com/openai/v1
       - key: LLM_MODEL
         value: openai/gpt-oss-20b
+      - key: DEMO_USERNAME
+        value: brandproof-demo
+      - key: DEMO_PASSWORD
+        sync: false
 
   - type: worker
     name: brandproof-analysis-worker
