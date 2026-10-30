@@ -1,96 +1,270 @@
 # BrandProof
 
-BrandProof is a full-stack, human-led brand content review workspace. The React/TypeScript frontend uses a Django REST Framework API and Django ORM persistence. It supports accounts, workspace roles, brand rules and guideline versions, approved evidence, content uploads, claim triage, terminology checks, advisory visual checks, corrections, exact-version reviews, comments, audit history, clarity signals and printable Trust Receipts.
+**BrandProof is a human-led brand governance workspace for reviewing promotional content.** It checks submitted campaign copy and creative files against workspace-specific guidelines, structured rules, and approved evidence. It brings the findings, source references, reviewer decisions, corrections, and version history together so a person can make and document the final decision.
 
-## Local setup
+> BrandProof is a decision-support tool. An AI result, rule match, visual check, or campaign comparison is not legal advice, proof of truth, or an automatic compliance approval. Reviewers remain responsible for decisions.
 
-Requirements: Python 3.10+, Node.js 20+, and (for OCR) Tesseract OCR. SQLite is the local default; PostgreSQL is supported with `DATABASE_URL`.
+## What you can do
 
-1. Copy `.env.example` to `backend/.env`; replace `DJANGO_SECRET_KEY` with a random secret. Leave `DATABASE_URL` unset for SQLite, or set it to a PostgreSQL connection URL.
-2. From `backend/`, create and activate a virtual environment, then run `pip install -r requirements.txt`.
-3. Apply migrations with `python3 manage.py migrate`, then create an account through the web UI (or run `python3 manage.py createsuperuser`).
-4. Start the API with `python3 manage.py runserver`.
-5. In a second backend terminal, start the durable analysis worker with `python3 manage.py run_analysis_worker`. Use `--once` to process one queued job.
-6. In another terminal, run `cd frontend && npm install && npm run dev`; open http://localhost:5173.
-7. Register, create a workspace, add brand rules and approved evidence, and submit text or a supported file. Analysis jobs remain visibly queued if the worker is stopped.
+- Create an account, create or switch workspaces, rename a workspace, and manage member roles (admin, manager, reviewer, creator).
+- Invite teammates with role-specific, single-use links; send invitations by email when SMTP is configured or share the manual link.
+- See the animated BrandProof introduction before sign-in and a sidebar-linked feature walkthrough after entering a workspace; the walkthrough can be skipped.
+- Use the branded glass-effect interface, responsive workspace navigation, and dashboard for review activity and open findings.
+- Add brand guidelines from pasted text or TXT, PDF, and DOCX files; edit and version them.
+- Turn guideline requirements into structured prohibited-term, preferred-term, tone, claim, and general rules; enable, disable, edit, or delete rules.
+- Add approved and disallowed examples, evidence sources, brand colors, and reference logos. Approve or revoke evidence for analysis.
+- Submit pasted campaign copy or TXT, PDF, DOCX, PNG, and JPEG assets (up to 20 MB); retain source files and extraction status with the asset version.
+- Analyze content with deterministic rules and, when configured, a Gemini or other supported OpenAI-compatible language-model endpoint. Claims without sufficient approved evidence are kept unverified; the system does not treat missing evidence as proof that a claim is false.
+- Inspect findings, matched rules, and source references; search and filter findings; assign work, comment, change finding status, and record review decisions.
+- Draft a correction, compare versions, and preserve the original. Applying a correction creates a new version and a fresh analysis/review.
+- Generate a printable Trust Receipt for the selected content version, its findings, evidence, and review decisions.
+- Compare the latest readable assets with the same campaign name for repeated numeric claims, configured preferred wording, and recognized disclosure-marker differences.
+- Review guideline-clarity candidates derived from recorded reviewer feedback; accepting a rewrite or editing it creates a guideline version.
+- Run optional image checks: OCR, palette summaries, approximate logo-template matching, and advisory contrast estimates.
+- Configure optional asset retention; purge expired assets with the management command.
 
-## Hackathon deployment (Render)
+## Architecture
 
-The default `render.yaml` is a temporary single-origin demo deployment. It builds the React app into Django and runs Gunicorn plus the analysis worker in one service with SQLite on ephemeral storage. `render.persistent.yaml` is a separate opt-in durable profile with paid web/worker services, a dedicated PostgreSQL database, and private S3-compatible uploads. Both profiles use Django migrations only: **they do not run `seed_demo` or create sample workspace/content records**. After deploy, register your own account, create your workspace, and enter your own guidelines, evidence, and review content.
+BrandProof is a single-page React application served by Django. In production the frontend and API share one origin, which keeps session authentication and CSRF handling straightforward.
 
-1. Put this project in a GitHub repository. Do not upload `.env`, `backend/.env`, `backend/db.sqlite3`, or uploaded files. The `.gitignore` excludes these local/private files and generated dependency/build folders.
-2. In Render, choose **New → Blueprint**, connect the repository, and create the Blueprint from `render.yaml`. Render generates the Django secret. No AI key or new PostgreSQL database is required to start the deployment.
-3. Wait for the `brandproof` service to finish building, then open its `onrender.com` URL. Register, create a workspace, add at least one rule and an approved evidence source, and submit your own pasted copy. The worker processes submissions. Do not run `seed_demo` for a clean project.
-4. To enable LLM analysis, create a Groq API key, then open the service's **Environment** settings in Render and add it as `LLM_API_KEY`. The Blueprint sets `LLM_BASE_URL` and `LLM_MODEL` to Groq's OpenAI-compatible endpoint and `openai/gpt-oss-20b`. Save and deploy. Keep the key in Render's secret settings, never in GitHub or chat. With no LLM key, deterministic rules still run, while factual claims remain unverified. Groq free-tier requests are subject to rate limits; if you reach one, the app keeps its rule checks and reports the provider warning.
-5. Tesseract OCR is included in this deployment image, so image and scanned-PDF OCR can run without a separate OCR API key.
+```text
+Browser
+  └── React + TypeScript (Vite build)
+        ├── Django-served static frontend
+        └── /api/v1/*  Django REST Framework
+                         ├── Django ORM ── SQLite (local/demo) or PostgreSQL
+                         ├── Analysis queue ── Django worker
+                         ├── File storage ── private local media or S3-compatible bucket
+                         ├── Gemini / OpenAI-compatible API (optional)
+                         ├── Embeddings + lexical retrieval (optional hybrid retrieval)
+                         └── Tesseract / OpenCV visual checks (optional/runtime-dependent)
+```
 
-**Temporary demo storage warning:** SQLite and uploaded files are on Render's temporary local filesystem. User accounts, workspaces, reviews, and uploads can disappear when the service restarts, sleeps, or redeploys. This is only for a short-lived demonstration. Do not enter sensitive content. For persistence, deploy the optional `render.persistent.yaml` architecture only after reviewing provider costs and supplying isolated private object-storage credentials; do not reuse another app's database without isolating it.
+### Main components and data flow
 
-### Persistent Round 3 Render profile
+1. A signed-in member submits copy or a file to a workspace. The API verifies membership and permissions, stores the asset and its version, and records extraction metadata.
+2. Text is taken from pasted copy or extracted from TXT, PDF, DOCX, or OCR-supported images/scanned PDF pages. Extraction warnings are kept with the version.
+3. Deterministic rules inspect the extracted text. Approved evidence and relevant guideline material are retrieved within the same workspace. When an LLM is configured, only the analysis context needed for that run is sent to the configured provider; the result is validated and attached to findings. Provider errors produce a warning and preserve deterministic findings.
+4. Analysis is represented by a persisted job/run. The included worker processes queued jobs, retries failures, and recovers stale processing jobs. The temporary Render blueprint runs the worker alongside the web process; the persistent profile runs it as a separate service.
+5. Findings, comments, status changes, decisions, corrections, audit records, and version hashes are stored through Django ORM. A correction creates another version; it does not overwrite the reviewed original.
 
-`render.persistent.yaml` is the opt-in durable architecture profile. It creates a paid Render web service, a separate paid analysis worker, and a dedicated managed PostgreSQL database. The database is separate from any other app database. Both services share the database and private S3-compatible file storage. The web service applies migrations at startup; the worker processes the shared database queue and reclaims stale jobs. Do not create this Blueprint until the team leader reviews Render's current service/database charges and the selected storage provider's charges.
+### Technology
 
-To configure it, use **New → Blueprint** and choose `render.persistent.yaml`. On creation, supply an isolated private S3-compatible bucket name, region, and access credentials in Render's secret fields (for Cloudflare R2, also supply its S3 endpoint). Supply the Groq key only if using AI. Never put secrets in the repository or chat. Create the services, wait for web/worker/database to become healthy, then run one new account/workspace journey and upload a private file. Verify the file can be downloaded only by workspace members and still exists after redeploy. The new web URL replaces the current demo URL only after those checks pass. The profile starts with a clean database; it does not migrate accounts or content from the existing ephemeral demo.
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite |
+| Backend/API | Python, Django, Django REST Framework |
+| Database | Django ORM; SQLite for local and temporary demo use; PostgreSQL for durable deployments |
+| Vector retrieval | PostgreSQL `pgvector` with HNSW cosine index when available and compatible 1536-dimension vectors are configured; JSON cosine and lexical fallbacks otherwise |
+| AI provider | Gemini through its OpenAI-compatible API or another compatible endpoint, configured by environment variables; AI is optional |
+| Document/image processing | TXT/PDF/DOCX extraction, Tesseract OCR, optional PyMuPDF PDF page rendering, OpenCV logo-template matching |
+| Production packaging | Multi-stage Docker build; Gunicorn; Render Blueprint examples |
+| File storage | Private Django media in local/demo mode; optional private S3-compatible object storage in persistent deployments |
 
-The PostgreSQL migration enables pgvector and creates an HNSW cosine index when the database role allows extension creation. The configured embedding provider must support `/embeddings` and return 1536 dimensions for database-side ranking; otherwise the app uses its tested JSON/lexical fallbacks. Configure a backup/restore procedure and monitor Render service, worker and database health before describing the deployment as production-ready. Render-managed database backups depend on the selected plan. This profile improves durability and worker isolation but is not a high-availability architecture.
-For an explicitly labeled walkthrough workspace, run from `backend/`:
+## Repository map
+
+```text
+backend/
+  app/                  Models, API views, analysis, retrieval, extraction, tests
+  config/               Django settings, root URLs, WSGI/ASGI configuration
+  manage.py             Django management entry point
+  requirements.txt      Backend dependencies
+frontend/
+  src/main.tsx          React application and screens
+  src/style.css         Product styling and motion
+  vite.config.ts        Local development server/proxy
+  package.json          Frontend dependencies and scripts
+deploy/
+  render-start.sh       Migrate, start worker, then start web process
+  render-web-start.sh   Persistent-profile web startup
+Dockerfile              Builds frontend and Django container
+render.yaml             Temporary single-service Render demo profile
+render.persistent.yaml  Optional PostgreSQL + separate worker + private storage profile
+.env.example            Local configuration template
+```
+
+The backend's principal records include workspaces and memberships, guidelines and versions, rules and examples, assets and versions, findings, reviews, comments and audit events, evidence sources and references, extracted claims, embeddings, correction suggestions, palette entries, reference logos, analysis runs, and guideline-clarity insights. See `backend/app/models.py` for the current schema.
+
+## Local development
+
+### Prerequisites
+
+- Python 3.10 or newer
+- Node.js 20 or newer
+- Tesseract OCR for OCR features (other core text and review workflows can run without it)
+- PostgreSQL only if you want to develop against PostgreSQL; SQLite is the local default
+
+### Start the application
+
+1. Copy `.env.example` to `backend/.env`. For local development, keep `DATABASE_URL` unset to use SQLite. Set a private `DJANGO_SECRET_KEY`; never use the sample value in production.
+2. Install backend dependencies and migrate:
+
+   ```sh
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python3 manage.py migrate
+   ```
+
+3. Start Django in the `backend/` directory:
+
+   ```sh
+   python3 manage.py runserver
+   ```
+
+4. In a second terminal, start the analysis worker from `backend/`:
+
+   ```sh
+   source .venv/bin/activate
+   python3 manage.py run_analysis_worker
+   ```
+
+   `--once` processes one available job and exits. If the worker is not running, queued analyses remain queued until a worker processes them.
+
+5. In a third terminal, start Vite:
+
+   ```sh
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+6. Open <http://localhost:5173>, register, create a workspace, add a guideline/rule and approved evidence, then submit content for review. Vite proxies API requests to the local Django service. Set `VITE_API_URL` only when intentionally pointing the frontend at a different API origin.
+
+For an administrator account, run `python3 manage.py createsuperuser` from `backend/`. Django admin is available at `/admin/`.
+
+## Configuration
+
+The backend reads environment variables (including `backend/.env` for local development). Render and other hosts should use their secret/environment settings rather than committed files.
+
+| Variable | Purpose |
+| --- | --- |
+| `DJANGO_SECRET_KEY` | Django signing secret. Use a long, private random value. |
+| `DJANGO_DEBUG` | Debug mode; must be `false` in production. |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames accepted by Django. |
+| `DATABASE_URL` | Optional database URL. Unset uses local SQLite; configure PostgreSQL for durable shared data. |
+| `CORS_ALLOWED_ORIGINS` | Allowed browser origins when frontend and API are on separate origins. |
+| `CSRF_TRUSTED_ORIGINS` | Trusted origins for Django CSRF protection, including the deployed HTTPS site. |
+| `VITE_API_URL` | Optional frontend API origin. Normally blank for Vite proxy/local and same-origin deployment. |
+| `LLM_API_KEY` | Secret key for the configured LLM provider. Never commit or share it. |
+| `LLM_BASE_URL` | OpenAI-compatible API base URL. See Gemini setup below. |
+| `LLM_MODEL` | Model identifier accepted by the selected provider. |
+| `LLM_EMBEDDING_MODEL` | Optional compatible embedding model for semantic evidence retrieval. |
+| `DEMO_USERNAME`, `DEMO_PASSWORD` | Optional public judge-demo login display. Use a dedicated demo account only. |
+| `DJANGO_STORAGE_BACKEND` | `local` for local/private media or `s3` for configured S3-compatible storage. |
+| `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_REGION_NAME`, `AWS_S3_ENDPOINT_URL` | Private object-storage settings; endpoint is needed for compatible non-AWS services. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Object-storage credentials. Store only in the host's secret manager. |
+| `AWS_S3_SERVER_SIDE_ENCRYPTION`, `AWS_QUERYSTRING_EXPIRE` | Optional upload encryption and signed-download expiry settings. |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | Optional SMTP invitation delivery. Store the password as a secret. |
+| `EMAIL_USE_TLS`, `EMAIL_USE_SSL`, `DEFAULT_FROM_EMAIL` | SMTP transport and sender configuration. |
+| `PUBLIC_APP_URL` | Public application URL used to create invitation links. |
+
+### Configure Gemini
+
+The provider is selected by the endpoint, model name, and API key; the Render Blueprint's defaults are **Groq**, so they must be changed if using Gemini. In the web service's environment settings set:
+
+```text
+LLM_API_KEY=<your Gemini API key>
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+LLM_MODEL=<a model enabled for your Gemini API key>
+```
+
+Use the model identifier shown as available to your key in Google's Gemini API documentation/console. Save the variables and restart or redeploy the service so the running process reads them. Never put the key in frontend code, GitHub, screenshots, or chat. If the key is missing, invalid, rate-limited, or the provider is unavailable, local deterministic checks remain available and the review should show an AI/provider warning; do not interpret that as a successful AI analysis.
+
+For another OpenAI-compatible provider, use its documented API base URL, valid model identifier, and key. Embeddings are a separate optional capability: configure `LLM_EMBEDDING_MODEL` only when the selected provider supports the compatible embeddings endpoint and the expected dimensions.
+
+## API overview
+
+The API root is `/api/v1/`. The interactive schema is at `/api/schema/`. Authentication uses Django session cookies and CSRF protection; APIs enforce workspace membership and role permissions. Throttling is enabled. List endpoints support optional `page` and `page_size` query parameters and preserve the array response when pagination is not requested.
+
+| Route group | What it covers |
+| --- | --- |
+| `auth/`, `auth/logout/` | Session status, sign-in/sign-out, and account access |
+| `workspaces/` | Workspace listing/creation, settings/rename, dashboard, members, roles, and invitations |
+| `workspaces/{id}/guidelines/`, `rules/`, `examples/` | Guideline versions, structured rules, and examples |
+| `workspaces/{id}/evidence/`, `claims/` | Approved evidence, claim ledger, and claim adjudication |
+| `workspaces/{id}/palette/`, `logos/` | Brand color and reference-logo configuration |
+| `workspaces/{id}/assets/`, `versions/` | Submission, asset versions, source files, and analysis retry |
+| `workspaces/{id}/findings/`, `review/`, `corrections/`, `receipt/` | Findings, comments/status actions, decisions, corrections, and Trust Receipts |
+| `workspaces/{id}/history/`, `audit/` | Review and audit history |
+| `workspaces/{id}/clarity/`, `campaigns/consistency/` | Guideline-clarity insights and cross-asset campaign comparison |
+| `workspaces/{id}/integrations/` | Runtime integration/configuration status |
+
+The exact route definitions are in `backend/app/urls.py`; permission and request details are in `backend/app/views.py` and the schema endpoint.
+
+## Optional demo workspace and judge credentials
+
+The normal deployment starts without sample workspace or review records. Create an account and enter real project-specific demo content, or explicitly seed a clearly labelled walkthrough workspace from `backend/`:
 
 ```sh
 python3 manage.py seed_demo --username brandproof-demo --password 'choose-a-demo-password'
 ```
 
-The walkthrough uses the same deterministic rule and review models. It labels seeded records `DEMO`; it does not represent real evidence or an executed LLM call. The command reports the username but never prints the password.
+The seeder creates records labelled `DEMO`; sample claims/evidence are illustrative and are not real verification. For a public judge login, set `DEMO_USERNAME` and `DEMO_PASSWORD` in the host settings to the credentials of that dedicated account, then run the seeder against the same deployed database using the same username/password. These credentials are intentionally displayed to every visitor, so never reuse a personal password or account. The seeder does not overwrite an existing demo workspace.
 
-To show judge credentials on the deployed login screen, set `DEMO_USERNAME` to `brandproof-demo` and choose a `DEMO_PASSWORD` in the web service's environment settings. These values are intentionally public on the login page; use a dedicated demo account and a password that is not used anywhere else. Then open the service shell and run `python manage.py seed_demo --username brandproof-demo --password 'THE_SAME_DEMO_PASSWORD'` against that deployment's database. The login panel reads the values at runtime, so a redeploy is not needed just to change them; restart/redeploy the service after updating environment settings. The seeder refuses to overwrite an existing demo workspace with guidelines.
+## Deployment
 
-For structured claim and tone analysis, set `LLM_API_KEY`, `LLM_MODEL`, and optionally `LLM_BASE_URL` in the backend environment. For embedding retrieval, also set `LLM_EMBEDDING_MODEL` to a compatible embedding model. Submitted extracted text and only retrieved, approved workspace evidence passages are sent to that configured provider; the UI discloses this. Without a configured provider, terminology/rule checks run locally and claim candidates remain unverified. Do not use production confidential content until you have configured an appropriate provider and private file storage.
+### Temporary Render demo
 
-For PostgreSQL, install dependencies, create a database and set `DATABASE_URL`, then apply the same migrations. In production set `DJANGO_DEBUG=false`, a strong secret, explicit `DJANGO_ALLOWED_HOSTS`, HTTPS and trusted origins. Configure private object storage and retention controls before accepting sensitive uploads; local media files are not publicly routed by this application.
+`render.yaml` creates a single-origin Docker web service. It builds the frontend into Django, runs migrations, Gunicorn, and the analysis worker in the same service. It uses SQLite and local uploaded-file storage on Render's temporary filesystem. This is suitable for a short-lived demo only: records and uploaded files can be lost after a restart, sleep, or redeploy. Do not submit sensitive content. Configure Gemini as described above if AI analysis is needed; the Blueprint initially specifies Groq values.
 
-For private S3-compatible file storage, install the backend requirements and set `DJANGO_STORAGE_BACKEND=s3`, `AWS_STORAGE_BUCKET_NAME`, and the region/endpoint values in `backend/.env`. Provide credentials through the hosting platform's secret manager (or the standard AWS credential chain); do not commit them. Configure the bucket to block public access and grant the application only the required object permissions. BrandProof downloads files through a workspace-authenticated endpoint. For invitation email, configure the `EMAIL_*` values and `DEFAULT_FROM_EMAIL`; set `PUBLIC_APP_URL` to the public frontend address. Put SMTP passwords in the hosting secret manager. Without SMTP, invitations still work through the manual one-time link.
+### Persistent Render profile
 
-## Product workflows
+`render.persistent.yaml` is a separate optional architecture: paid web and worker services, an isolated managed PostgreSQL database, and private S3-compatible file storage. It applies migrations at web startup and runs analysis in a separate worker. Before creating it, review current Render and storage-provider costs. Supply a private bucket, region/endpoint and credentials in Render's secret settings. The profile starts with a clean database; it does not copy data from the temporary demo. Configure and verify backups, restore, HTTPS, monitoring, retention scheduling, and service health before treating the deployment as production-ready. It improves persistence and process isolation, but is not high availability.
 
-- **Guidelines:** create guidelines from pasted text, TXT, PDF or DOCX; edit guideline source/name; create, edit, enable/disable and delete structured rules; version history is recorded. PDF text carries `[Page N]` markers. Extraction warnings block false success.
-- **Evidence:** maintain approved internal passages or upload evidence TXT/PDF/DOCX. Approved/disallowed examples can be configured on each guideline. A workspace-scoped retriever selects only approved passages. When `LLM_EMBEDDING_MODEL` is configured, it stores embeddings and uses a PostgreSQL pgvector HNSW cosine index for compatible 1536-dimension vectors; SQLite, unsupported dimensions or an unavailable pgvector index use cosine ranking from JSON vectors, then lexical ranking when vectors are unavailable. Sources remain attached to claims. Referenced evidence cannot be hard-deleted; approval can be revoked to exclude it from future runs while preserving prior citations.
-- **Content:** submit pasted content, TXT, PDF, DOCX, PNG or JPEG up to 20 MB. Original files are retained in Django storage. Extraction method/status/warnings are retained per version. Tesseract OCR is optional. Scanned PDF pages use optional PyMuPDF rendering plus Tesseract OCR when installed; page and word-region confidence metadata is retained where OCR succeeds.
-- **Analysis:** configured deterministic terminology and absolute-claim checks run locally. Without an LLM, factual-looking claims are marked unverified, never contradicted merely for lack of evidence. With an LLM, response structure and returned workspace source/rule IDs are validated. Provider errors become warnings and do not imply compliance.
-- **Visual checks:** image palette summaries compare dominant colors with configured colors and are advisory. Logo checks use scale-limited OpenCV grayscale template matching and return confidence/region information. Both require configured reference data. When high-confidence OCR boxes exist, contrast is estimated from local luminance percentiles and flagged as advisory; it is not an accessibility certification. OCR requires a working local Tesseract installation.
-- **Review:** findings support comments/replies, status history and dismissal reasons. Reviewer/manager/admin roles can decide reviews; managers can assign findings to workspace reviewers; approvals with unresolved findings require a recorded override reason. Every approval belongs to one content version. Corrections save new versions and trigger reanalysis. Suggested phrases replace only their matched passage; full-content deterministic drafts are applied as full content. Workspace members can download retained source files through an authenticated, workspace-scoped endpoint. The original upload remains retained, and a text correction to an uploaded asset is not overwritten by re-extracting its original file.
-- **Receipts and clarity:** receipts read persisted version hashes, findings, checked sources and review decisions and can be printed/saved as PDF in the browser. Clarity candidates require at least three recorded dismissals, requested changes or comments; accepting or editing a rewrite creates a new guideline version; suggestions can also be rejected. The simple signal model is not AI disagreement analysis.
-- **Campaign consistency:** compares readable latest versions of assets sharing the same campaign name. It flags repeated sentence patterns with changed numbers, variants of configured preferred wording, and recognized disclaimer markers that appear in some but not all assets. It is deliberately conservative: disclosure rules vary by format, and possible mismatches ask a person to verify instead of deciding truth or legal compliance.
-- **API:** endpoints live under `/api/v1/`; generated OpenAPI schema is at `/api/schema/`. Authentication uses Django sessions and CSRF protection. Per-user and anonymous throttles are enabled. List endpoints accept optional `page` and `page_size` parameters while retaining the existing array response when pagination is not requested.
+To enable private S3-compatible storage, set `DJANGO_STORAGE_BACKEND=s3`, bucket, region/endpoint and credentials. Block public bucket access and grant only the required object permissions. Downloads go through workspace-authenticated endpoints. To send invitations by email, configure SMTP variables; without SMTP the app provides a manual single-use invitation link.
 
-## Verification
+For any production deployment: use a strong secret, `DJANGO_DEBUG=false`, explicit allowed hosts and HTTPS trusted origins; keep provider/database/storage/SMTP credentials in the hosting platform's secret manager. A deployment's environment values—not local `.env` values—control its running configuration.
 
-From `backend/`:
+## Analysis, retrieval, and visual-check behavior
+
+- Deterministic rule checks run locally. LLM analysis is optional and can add claim/tone assessment and correction suggestions. Model output is validated; provider failures are warnings, not approvals.
+- A potential factual claim with no relevant approved evidence remains unverified and needs a person to review it. Only workspace-approved sources are eligible for retrieval. Source references are retained with findings; revoking approval excludes a source from future analysis while preserving earlier records.
+- Evidence retrieval combines lexical relevance with embeddings when available. PostgreSQL can use pgvector/HNSW for compatible 1536-dimension vectors. If PostgreSQL, extension permissions, provider embeddings, or compatible dimensions are unavailable, the application falls back to JSON-vector cosine and/or lexical ranking. No embeddings are fabricated.
+- OCR may extract text from images and rendered PDF pages when Tesseract (and for PDF rendering, PyMuPDF) are available. Poor images, scans, or unsupported file contents can produce incomplete extraction and warnings.
+- Palette, approximate logo-template matching, and contrast estimation are heuristics. Contrast is advisory and not an accessibility certification; logo matching does not prove authenticity. Configure reference colors/logos and have a person verify results.
+- Campaign consistency compares readable latest versions grouped under the same campaign name. It flags possible differences for human verification; it does not determine which offer is correct, legal, or compliant.
+- `retention_days` is a policy setting; enforcement requires scheduling `purge_expired_assets` on a trusted host. Local demo storage and temporary Render storage are not durable backups.
+
+## Operations and maintenance commands
+
+Run these from `backend/` with the virtual environment active:
 
 ```sh
+python3 manage.py migrate
+python3 manage.py check
+python3 manage.py run_analysis_worker --poll-seconds 2 --stale-minutes 10 --max-attempts 3
+python3 manage.py purge_expired_assets --dry-run
+```
+
+After reviewing the dry run, schedule `python3 manage.py purge_expired_assets` with an appropriate scheduler if retention enforcement is required. The worker stores job states, retries failures with backoff, and reclaims stale work; a final failed analysis can be retried from the asset review.
+
+## Verification commands
+
+The repository includes backend tests and a frontend production build command. Run these when making changes:
+
+```sh
+# From backend/
 python3 manage.py test app
 python3 manage.py check
 python3 manage.py makemigrations --check --dry-run
-```
 
-From `frontend/`:
-
-```sh
+# From frontend/
 npm run build
 ```
 
-The deploy container itself could not be built locally unless Docker Desktop is installed and running. Render builds the same Dockerfile during deployment and reports any container-build errors in its deploy log.
+The labelled synthetic cases in `backend/app/evaluation_cases.json` cover evidence classifications, terminology, tone, and visual scenarios. The automated suite covers workspace isolation, permissions, analysis/retrieval, extraction metadata, visual checks, corrections, version-specific approvals, receipts, clarity thresholds, queue retries, invitations, pagination, retention, and demo seeding. These are test fixtures and coverage areas, not a claim of real-world accuracy or a verified hosted-provider evaluation. Live Gemini/other-provider, Render, database, OCR-binary, and object-storage behavior depends on the configured services.
 
-The synthetic labelled cases in `backend/app/evaluation_cases.json` cover evidence classifications, terminology, tone and visual scenarios. The test suite exercises workspace isolation, claim source validation, rule checks, lexical and vector evidence retrieval, extraction metadata, visual advisory/logo matching, uploaded-asset corrections, permissions, comments, version-specific approval, Trust Receipts, clarity thresholds, queue retries, invitations, pagination, retention and demo seeding. No accuracy or real-world evaluation percentages are claimed.
+## Known limitations
 
-## Retention, invitations and operations
+- The temporary Render deployment uses ephemeral local data and file storage. Use the persistent profile and verify backup/restore for data that must survive deploys.
+- pgvector retrieval needs PostgreSQL, the `vector` extension, compatible 1536-dimension vectors, and a working embedding endpoint. JSON-vector and lexical fallbacks preserve retrieval when those requirements are absent, but do not provide database-side indexing.
+- AI output can be unavailable, rate-limited, malformed, or wrong. Deterministic findings remain available where possible; human review is required, especially for factual and regulatory claims.
+- OCR and visual checks can miss or misread content; they are advisory. No automated visual result proves brand compliance or logo authenticity.
+- Email, private object storage, backups, monitoring, HTTPS, and scheduled retention are optional operational integrations and need owner-provided services and credentials.
+- The product is organized as one React application and one Django app. Further modularization or a dedicated job broker would be future engineering work, not an existing capability.
 
-- Workspace admins can set `retention_days` in Settings. Run `python3 manage.py purge_expired_assets --dry-run` to inspect due deletions, then schedule `python3 manage.py purge_expired_assets` with a trusted system scheduler to enforce the policy. Asset deletion removes original files and cascaded review data while writing an audit event.
-- Workspace admins can create single-use, seven-day invitation links for an email and role. When SMTP is configured, BrandProof emails the invitation; otherwise it displays the link for manual sharing. Invited users accept it during registration.
-- Run the database-backed analysis worker as a separate process. Jobs persist queued/processing/completed/warnings/failed states, stale processing jobs are reclaimed, and `--max-attempts 3` retries failed analysis up to three times with backoff. A final failed run can still be retried from the asset review.
+## Roadmap
 
-## Remaining limitations
-
-- Database-side vector ranking requires PostgreSQL, the `vector` extension, provider vectors with 1536 dimensions, and configured `LLM_EMBEDDING_MODEL` support for the compatible `/embeddings` endpoint. Other local/provider configurations use the tested JSON cosine and lexical fallbacks. Existing JSON embeddings are mirrored into the index as they are used by analysis; no vector is fabricated when the provider does not return one.
-- Contrast estimates and logo checks are heuristic and remain advisory: generic image analysis cannot reliably determine which colors are intentional brand elements or prove a logo is authentic. OCR regions can be incomplete or wrong. Contrast is not an accessibility certification. Improve confidence with a workspace-specific labelled image set and human review; do not treat these checks as automatic compliance decisions.
-- Private source-file downloads, configurable SMTP invitation delivery, and configurable private S3-compatible storage are implemented. They still require SMTP/storage settings and production credentials. Local development defaults to private Django media files. Production backups, monitoring, HTTPS, and scheduling the documented retention command must be configured on the chosen host. The separate Render persistent profile uses PostgreSQL, private object storage, and an isolated worker; it is not high availability and still needs owner-configured backups, monitoring, credentials, and restore verification.
-- The frontend remains a single-page React workspace and the backend uses one Django app. This is an organizational choice in this MVP, not a disconnected feature; splitting it into multiple packages is a maintainability refactor and does not add user-facing capability.
-- External AI, embeddings, database, OCR binaries, SMTP, object storage and deployment availability are configuration dependencies. Live provider and hosted-infrastructure behavior must be checked after the owner configures those services; automated tests do not claim real-world model or visual accuracy.
+Potential next steps after the current implementation are production-grade background-job infrastructure and observability; stronger, workspace-calibrated visual evaluation with labelled human-reviewed examples; and richer operational reporting and export/integration workflows. Prioritize them against user feedback and measured failure cases. Do not describe a roadmap item as implemented until it has shipped and been verified.
