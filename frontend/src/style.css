@@ -42,12 +42,14 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 .brand-intro__orb{position:absolute;inset:0;border:1px solid #89edc222;border-radius:50%;pointer-events:none;animation:bp-orbit-in 1.25s ease-out both}
 .brand-intro__orb--one{inset:7%;border-color:#8de8c32b;transform:rotate(-18deg)}
 .brand-intro__orb--two{inset:-3%;border-color:#d5b96b22;animation-delay:.1s;transform:rotate(18deg)}
-.brand-intro__stage-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;animation:bp-logo-arrive .9s cubic-bezier(.2,.8,.2,1) both}
+.brand-intro__stage-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;animation:bp-logo-arrive .9s cubic-bezier(.2,.8,.2,1) both}
 .brand-intro__logo-lockup{display:flex;flex-direction:column;align-items:center;gap:8px}
-.brand-intro__logo-circle{position:relative;width:clamp(126px,17vw,154px);aspect-ratio:1;overflow:hidden;border:1px solid #8de8c359;border-radius:50%;background:radial-gradient(circle at 35% 28%,#20725d,#10463d 55%,#0a2f30 100%);box-shadow:0 0 0 7px #95efc00b,0 12px 34px #03171570,inset 0 1px #d7ffeb30}
+.brand-intro__logo-circle{position:relative;width:clamp(142px,18vw,166px);aspect-ratio:1;overflow:hidden;border:1px solid #8de8c359;border-radius:50%;background:radial-gradient(circle at 35% 28%,#20725d,#10463d 55%,#0a2f30 100%);box-shadow:0 0 0 7px #95efc00b,0 12px 34px #03171570,inset 0 1px #d7ffeb30}
 .brand-intro__logo-circle img{position:absolute;left:50%;top:-39%;width:360%;max-width:none;height:auto;mix-blend-mode:screen;filter:invert(1) hue-rotate(180deg) saturate(1.15);transform:translateX(-50%)}
 .brand-intro__wordmark{color:#effff7;font:700 clamp(22px,3vw,29px)/1 'DM Sans',sans-serif;letter-spacing:-1.2px;text-shadow:0 3px 18px #031c19a0}
 .brand-intro__wordmark span{color:#8de8c3}
+.brand-intro__loader{margin-top:10px;color:#9aebc4;animation:bp-loader-spin 1.15s linear infinite}
+.brand-intro__quote{margin:0;color:#d0e9dc;font:500 13px/1.5 'Playfair Display',serif;letter-spacing:.01em;text-align:center;animation:bp-fade .55s .65s both}
 .brand-intro__demo{position:relative;width:min(310px,79%);overflow:hidden;padding:13px 15px 12px;border:1px solid #8ae4bb47;border-radius:13px;background:linear-gradient(145deg,#0a2929ed,#103a35e8);box-shadow:0 16px 44px #03171566, inset 0 1px #c5ffe411;animation:bp-demo-arrive .75s .42s both;}
 .brand-demo__top,.brand-demo__result{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .brand-demo__top{font-size:8px;font-weight:800;letter-spacing:.14em;color:#a2e9c3}
@@ -76,6 +78,7 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 @keyframes bp-scan{0%{transform:translateX(0)}100%{transform:translateX(390%)}}
 @keyframes bp-progress{0%{transform:translateX(0)}100%{transform:translateX(380%)}}
 @keyframes bp-live{50%{opacity:.55;box-shadow:0 0 0 7px #75e7ae0d}}
-@media(max-width:600px){.brand-intro{gap:0}.brand-intro__stage{width:min(90vw,62vh)}.brand-intro__logo-circle{width:126px}.brand-intro__demo{width:82%;padding:11px 12px}.brand-intro__signature{max-width:290px;font-size:8px;line-height:1.6;letter-spacing:.1em}}
-@media(max-height:650px) and (min-width:601px){.brand-intro__stage{width:min(420px,62vh)}.brand-intro__logo-circle{width:118px}.brand-intro__demo{padding:9px 12px}.brand-intro__progress{margin-top:15px}.brand-intro__signature{margin-top:9px}}
-@media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro__stage:before,.brand-intro__stage:after,.brand-intro__orb,.brand-intro__stage-content,.brand-intro__demo,.brand-intro__progress,.brand-intro__progress span,.brand-demo__scan span,.brand-demo__top i{animation-duration:.01ms!important;animation-iteration-count:1!important}.brand-intro__progress span{left:0;width:68%;transform:none}}
+@keyframes bp-loader-spin{to{transform:rotate(360deg)}}
+@media(max-width:600px){.brand-intro{gap:0}.brand-intro__stage{width:min(90vw,62vh)}.brand-intro__logo-circle{width:142px}.brand-intro__quote{font-size:12px}.brand-intro__signature{max-width:290px;font-size:8px;line-height:1.6;letter-spacing:.1em}}
+@media(max-height:650px) and (min-width:601px){.brand-intro__stage{width:min(420px,62vh)}.brand-intro__logo-circle{width:128px}.brand-intro__progress{margin-top:15px}.brand-intro__signature{margin-top:9px}}
+@media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro__stage:before,.brand-intro__stage:after,.brand-intro__orb,.brand-intro__stage-content,.brand-intro__loader,.brand-intro__quote,.brand-intro__demo,.brand-intro__progress,.brand-intro__progress span,.brand-demo__scan span,.brand-demo__top i{animation-duration:.01ms!important;animation-iteration-count:1!important}.brand-intro__progress span{left:0;width:68%;transform:none}}
