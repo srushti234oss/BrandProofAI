@@ -209,3 +209,93 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 @keyframes bp-focus-pulse{0%,100%{box-shadow:0 0 0 3px rgba(104,207,157,.18),0 0 18px rgba(115,229,173,.32)}50%{box-shadow:0 0 0 6px rgba(104,207,157,.1),0 0 28px rgba(115,229,173,.5)}}
 @media(max-width:600px){.tour-card{width:min(320px,calc(100vw - 92px));padding:18px 18px 14px}.tour-card:before{display:block}.tour-card h2{font-size:23px}.tour-description{font-size:11px}.tour-focus-frame{border-radius:9px}}
 @media(prefers-reduced-motion:reduce){.tour-focus-frame{animation:none!important}}
+
+/* Round 3 refinement: slightly more legible interface type without changing the palette. */
+body{font-size:15px}
+.topbar{font-size:12px}
+.navlabel,.eyebrow{font-size:11px}
+nav button{font-size:13px}
+.workspace-switch b,.profile b{font-size:13px}
+.workspace-switch small,.profile small{font-size:11px}
+.muted{font-size:13px}
+.primary,.secondary,.approve,.reject{font-size:12px}
+.metric-top{font-size:12px}
+.metric small{font-size:11px}
+.panelhead p{font-size:11px}
+.assetmain b,.riskrow b,.activity b,.rulelist b{font-size:12px}
+.assetmain small,.status,.tag,.findingcount,.rule-ref,.finding-actions select,.commentbox input,.commentbox button,.comment,.form label,.authcard label,.small,.setting b,.setting small{font-size:11px}
+.empty p,.campaign-conflict>b,.campaign-assets>b{font-size:12px}
+
+/* Center the guideline identity within its column; keep rule copy naturally readable. */
+.guideline>div:first-child{display:flex;flex-direction:column;align-items:center;text-align:center}
+.guideline .guide-icon{margin-inline:auto}
+.guideline>div:first-child p{line-height:1.55}
+
+/* Findings read as separate review cards, with enough space for long evidence and suggestions. */
+.detailmain .finding{margin:14px 0;padding:20px 18px 21px;border:1px solid #e4ece6;border-radius:12px;background:rgba(255,255,255,.48);line-height:1.65}
+.detailmain .finding:first-of-type{margin-top:16px}
+.findingtop{flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.detailmain .finding blockquote{margin:12px 0 10px;padding:2px 0 2px 14px;font-size:16px;line-height:1.6;overflow-wrap:anywhere}
+.detailmain .finding>p{font-size:13px;line-height:1.7;margin:9px 0 12px;overflow-wrap:anywhere}
+.detailmain .rule-ref,.detailmain .evidence-ref{margin:10px 0;padding:12px 14px;line-height:1.65;font-size:12px;overflow-wrap:anywhere}
+.detailmain .evidence-ref p{font-size:12px;line-height:1.7;margin:7px 0}
+.detailmain .suggestion{margin:14px 0;padding:16px;border:1px solid #dfebe1;line-height:1.65}
+.detailmain .suggestion>p{font-size:12px;line-height:1.65}
+.detailmain .suggestion details{margin:9px 0}
+.detailmain .suggestion pre{font:12px/1.7 'DM Sans',sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;margin:8px 0 12px;padding:12px}
+.finding-actions{flex-wrap:wrap;gap:10px;margin-top:16px}
+.finding-actions label{font-size:11px;line-height:1.5}
+.finding-actions select{min-height:38px;padding:8px 10px}
+.commentbox{min-height:38px}
+.detailmain .comment{margin-top:9px;padding:11px 13px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+
+/* Side-to-side arrival for the cards used throughout the workspace, not only the overview. */
+.app .content>.pagehead{animation:bp-refine-left .5s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.panel,
+.app .content>.guideline,
+.app .content>.clarityrow,
+.app .content>.campaign-panel,
+.app .content>.detailgrid,
+.app .content>.metrics,
+.app .content>.grid,
+.app .content>.bottomgrid{animation:bp-refine-right .56s cubic-bezier(.2,.75,.25,1) both}
+.app .content>.metrics>.metric:nth-child(odd),
+.app .content>.grid>*:nth-child(odd),
+.app .content>.bottomgrid>*:nth-child(odd){animation-name:bp-refine-left}
+.app .content>.metrics>.metric:nth-child(even),
+.app .content>.grid>*:nth-child(even),
+.app .content>.bottomgrid>*:nth-child(even){animation-name:bp-refine-right}
+.app .content .detailgrid>.detailmain,.app .content .detailgrid>.versionpanel{animation:bp-refine-right .56s cubic-bezier(.2,.75,.25,1) both}
+.app .content .detailgrid>.detailmain{animation-name:bp-refine-left}
+.app .content .detailmain .finding{animation:bp-refine-right .42s cubic-bezier(.2,.75,.25,1) both}
+.app .content .detailmain .finding:nth-of-type(even){animation-name:bp-refine-left}
+.app .content .detailmain .finding:nth-of-type(3){animation-delay:.06s}
+.app .content .detailmain .finding:nth-of-type(4){animation-delay:.12s}
+.app .content .detailmain .finding:nth-of-type(5){animation-delay:.18s}
+@keyframes bp-refine-left{from{opacity:0;transform:translateX(-28px);filter:blur(3px)}to{opacity:1;transform:translateX(0);filter:blur(0)}}
+@keyframes bp-refine-right{from{opacity:0;transform:translateX(28px);filter:blur(3px)}to{opacity:1;transform:translateX(0);filter:blur(0)}}
+
+/* Small lift and scale on hover across dashboard cards and review panels. */
+.app .content .panel,.app .content .metric,.app .content .insight-card,
+.app .content .guideline,.app .content .clarityrow,.app .content .campaign-panel,
+.app .content .finding,.app .content .campaign-conflict,.app .content .claimrow{
+  transition:transform .24s cubic-bezier(.2,.75,.25,1),box-shadow .24s ease,border-color .24s ease;
+  transform-origin:center;
+}
+.app .content .panel:hover,.app .content .metric:hover,.app .content .insight-card:hover,
+.app .content .guideline:hover,.app .content .clarityrow:hover,.app .content .campaign-panel:hover,
+.app .content .finding:hover,.app .content .campaign-conflict:hover,.app .content .claimrow:hover{
+  transform:translateY(-2px) scale(1.012);
+  box-shadow:0 16px 38px rgba(22,59,44,.15),inset 0 1px 0 rgba(255,255,255,.9);
+  border-color:rgba(91,167,126,.38);
+}
+@media(max-width:650px){
+  .detailmain .finding{padding:16px 13px}
+  .finding-actions{align-items:stretch;flex-direction:column}
+  .finding-actions label,.finding-actions select,.commentbox{width:100%}
+  .app .content .panel:hover,.app .content .metric:hover,.app .content .insight-card:hover,.app .content .finding:hover{transform:translateY(-1px) scale(1.006)}
+}
+@media(prefers-reduced-motion:reduce){
+  .app .content>.pagehead,.app .content>.panel,.app .content>.guideline,.app .content>.clarityrow,.app .content>.campaign-panel,.app .content>.detailgrid,.app .content>.metrics,.app .content>.grid,.app .content>.bottomgrid,.app .content .detailgrid>.detailmain,.app .content .detailgrid>.versionpanel,.app .content .detailmain .finding{animation:none!important}
+  .app .content .panel:hover,.app .content .metric:hover,.app .content .insight-card:hover,.app .content .guideline:hover,.app .content .clarityrow:hover,.app .content .campaign-panel:hover,.app .content .finding:hover,.app .content .campaign-conflict:hover,.app .content .claimrow:hover{transform:none!important}
+}
