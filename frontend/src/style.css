@@ -153,3 +153,40 @@ html.brand-intro-active,html.brand-intro-active body{overflow:hidden}
 @keyframes bp-drop-in{from{opacity:0;transform:translateY(-16px) scale(.992);filter:blur(2px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
 @keyframes bp-row-settle{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.app .content>.pagehead,.app .content>.metrics>.metric,.app .content>.grid>.panel,.app .content>.bottomgrid>*,.app .content .recent .assetrow{animation:none!important}}
+
+/* More visible tinted glass: translucent versions of the existing card colors. */
+.app .content .metric,
+.app .content .panel{
+  background:rgba(255,255,255,.58);
+  border:1px solid rgba(255,255,255,.82);
+  -webkit-backdrop-filter:blur(24px) saturate(165%);
+  backdrop-filter:blur(24px) saturate(165%);
+  box-shadow:0 12px 34px rgba(27,68,51,.12),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(100,145,120,.08);
+}
+.app .content .insight-card{
+  background:rgba(233,243,235,.62);
+  border:1px solid rgba(220,232,220,.88);
+  -webkit-backdrop-filter:blur(24px) saturate(165%);
+  backdrop-filter:blur(24px) saturate(165%);
+  box-shadow:0 12px 34px rgba(27,68,51,.11),inset 0 1px 0 rgba(255,255,255,.84),inset 0 -1px 0 rgba(100,145,120,.08);
+}
+.app .content .metric:hover,
+.app .content .panel:hover,
+.app .content .insight-card:hover{
+  box-shadow:0 18px 42px rgba(27,68,51,.17),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(100,145,120,.1);
+}
+
+/* Side-to-side arrivals make the dashboard feel like one coordinated reveal. */
+.app .content>.metrics>.metric:nth-child(odd){animation-name:bp-glass-from-left}
+.app .content>.metrics>.metric:nth-child(even){animation-name:bp-glass-from-right}
+.app .content>.grid>.panel:nth-child(odd),
+.app .content>.bottomgrid>*:nth-child(odd){animation-name:bp-glass-from-left}
+.app .content>.grid>.panel:nth-child(even),
+.app .content>.bottomgrid>*:nth-child(even){animation-name:bp-glass-from-right}
+.app .content>.grid>.panel:nth-child(1){animation-delay:.22s}
+.app .content>.grid>.panel:nth-child(2){animation-delay:.3s}
+.app .content>.bottomgrid>*:nth-child(1){animation-delay:.36s}
+.app .content>.bottomgrid>*:nth-child(2){animation-delay:.44s}
+@keyframes bp-glass-from-left{from{opacity:0;transform:translateX(-42px) translateY(8px) scale(.985);filter:blur(5px)}to{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
+@keyframes bp-glass-from-right{from{opacity:0;transform:translateX(42px) translateY(8px) scale(.985);filter:blur(5px)}to{opacity:1;transform:translateX(0) translateY(0) scale(1);filter:blur(0)}}
+@media(prefers-reduced-motion:reduce){.app .content>.metrics>.metric,.app .content>.grid>.panel,.app .content>.bottomgrid>*{animation:none!important}}
