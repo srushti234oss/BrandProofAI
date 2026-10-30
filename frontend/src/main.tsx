@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';import{createRoot}from'react-dom/client';import{LayoutDashboard,BookOpenCheck,ScanSearch,History,Users,Lightbulb,Settings,Plus,Search,ArrowUpRight,AlertTriangle,CheckCircle2,Clock3,Upload,FileText,ChevronRight,ShieldCheck,MessageSquare,ArrowRight, X, LoaderCircle, Layers}from'lucide-react';import brandproofLogo from './assets/brandproof-mark-transparent.png';import './style.css';
+import React,{useEffect,useRef,useState} from 'react';import{createRoot}from'react-dom/client';import{LayoutDashboard,BookOpenCheck,ScanSearch,History,Users,Lightbulb,Settings,Plus,Search,ArrowUpRight,AlertTriangle,CheckCircle2,Clock3,Upload,FileText,ChevronRight,ShieldCheck,MessageSquare,ArrowRight, X, LoaderCircle, Layers}from'lucide-react';import brandproofLogo from './assets/brandproof-mark-transparent.png';import './style.css';
 const API=(import.meta.env.VITE_API_URL||`${window.location.origin}/api/v1`).replace(/\/$/,'');
 const rootElement=document.getElementById('root');
 const demoConfig=rootElement?.dataset||{};
@@ -20,7 +20,43 @@ const FEATURE_TOUR=[
   {title:'Campaign Consistency',icon:Layers,description:'Compare related campaign content to spot differences, such as two posts showing different discounts.',hint:'It flags possible mismatches for a person to check.'},
   {title:'Settings',icon:Settings,description:'View how this workspace is configured, including analysis and content retention options.',hint:'Available settings depend on your role.'},
 ];
-function FeatureTour({step,onNext,onSkip}:any){const item=FEATURE_TOUR[step]||FEATURE_TOUR[0],Icon=item.icon;return <div className="tour-backdrop"><section className="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title"><div className="tour-card-top"><span className="tour-icon"><Icon size={20}/></span><span className="tour-count">{step+1} / {FEATURE_TOUR.length}</span></div><p className="tour-eyebrow">A QUICK TOUR OF BRANDPROOF</p><h2 id="tour-title">{item.title}</h2><p className="tour-description">{item.description}</p><div className="tour-hint"><ArrowRight size={15}/><span>{item.hint}</span></div><div className="tour-progress" aria-label={`Step ${step+1} of ${FEATURE_TOUR.length}`}><span style={{width:`${((step+1)/FEATURE_TOUR.length)*100}%`}}/></div><footer><button className="tour-skip" onClick={onSkip}>Skip tour</button><button className="tour-next" onClick={onNext}>{step===FEATURE_TOUR.length-1?'Enter workspace':'Next'}<ArrowRight size={15}/></button></footer></section></div>}
+function FeatureTour({step,onNext,onSkip}:any){
+  const item=FEATURE_TOUR[step]||FEATURE_TOUR[0],Icon=item.icon;
+  const cardRef=useRef<HTMLElement|null>(null);
+  const [target,setTarget]=useState<DOMRect|null>(null);
+  const [position,setPosition]=useState({left:270,top:24,arrowY:54});
+  useEffect(()=>{
+    const update=()=>{
+      const buttons=Array.from(document.querySelectorAll<HTMLElement>('.sidebar nav button'));
+      const match=buttons.find(button=>button.textContent?.trim().startsWith(item.title));
+      setTarget(match?match.getBoundingClientRect():null);
+    };
+    update();window.addEventListener('resize',update);window.addEventListener('scroll',update,true);
+    return()=>{window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true)};
+  },[item.title]);
+  useEffect(()=>{
+    if(!target)return;
+    const frame=window.requestAnimationFrame(()=>{
+      const card=cardRef.current;if(!card)return;
+      const height=card.getBoundingClientRect().height;
+      const left=Math.max(16,Math.min(window.innerWidth-card.offsetWidth-16,target.right+20));
+      const top=Math.max(16,Math.min(window.innerHeight-height-16,target.top+target.height/2-height/2));
+      setPosition({left,top,arrowY:Math.max(25,Math.min(height-25,target.top+target.height/2-top))});
+    });
+    return()=>window.cancelAnimationFrame(frame);
+  },[target,step]);
+  const mask=target?`radial-gradient(ellipse ${target.width/2+9}px ${target.height/2+8}px at ${target.left+target.width/2}px ${target.top+target.height/2}px, transparent 0 94%, #000 112%)`:undefined;
+  return <div className="tour-backdrop" style={{maskImage:mask,WebkitMaskImage:mask}}>
+    {target&&<div className="tour-focus-frame" style={{left:target.left-3,top:target.top-3,width:target.width+6,height:target.height+6}}/>}
+    <section ref={cardRef} className="tour-card" style={{left:position.left,top:position.top,'--tour-arrow-y':`${position.arrowY}px`} as React.CSSProperties} role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div className="tour-card-top"><span className="tour-icon"><Icon size={18}/></span><span className="tour-count">{step+1} / {FEATURE_TOUR.length}</span></div>
+      <p className="tour-eyebrow">FEATURE {step+1} OF {FEATURE_TOUR.length}</p><h2 id="tour-title">{item.title}</h2>
+      <p className="tour-description">{item.description}</p><div className="tour-hint"><ArrowRight size={14}/><span>{item.hint}</span></div>
+      <div className="tour-progress" aria-label={`Step ${step+1} of ${FEATURE_TOUR.length}`}><span style={{width:`${((step+1)/FEATURE_TOUR.length)*100}%`}}/></div>
+      <footer><button className="tour-skip" onClick={onSkip}>Skip tour</button><button className="tour-next" onClick={onNext}>{step===FEATURE_TOUR.length-1?'Enter workspace':'Next'}<ArrowRight size={14}/></button></footer>
+    </section>
+  </div>
+}
 function ProductApp(){const [ws,setWs]=useState<Workspace|null>(null),[workspaces,setWorkspaces]=useState<Workspace[]>([]),[assets,setAssets]=useState<Asset[]>([]),[page,setPage]=useState('Overview'),[dialog,setDialog]=useState(''),[campaignRequired,setCampaignRequired]=useState(false),[campaignInitial,setCampaignInitial]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[dash,setDash]=useState<any>({}),[guides,setGuides]=useState<any[]>([]),[evidenceRows,setEvidenceRows]=useState<any[]>([]),[paletteRows,setPaletteRows]=useState<any[]>([]),[logoRows,setLogoRows]=useState<any[]>([]),[memberRows,setMemberRows]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[auditRows,setAuditRows]=useState<any[]>([]),[claimRows,setClaimRows]=useState<any[]>([]),[classFilter,setClassFilter]=useState('all'),[claimQuery,setClaimQuery]=useState(''),[claimCategory,setClaimCategory]=useState('all'),[claimStatus,setClaimStatus]=useState('all'),[claimSeverity,setClaimSeverity]=useState('all'),[clarityRows,setClarityRows]=useState<any[]>([]),[integrations,setIntegrations]=useState<any>({}),[campaignReport,setCampaignReport]=useState<any>({campaigns:[]}),[auth,setAuth]=useState<any>(null),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[user,setUser]=useState(''),[pass,setPass]=useState(''),[selected,setSelected]=useState<Asset|null>(null);
 const [appReady,setAppReady]=useState(false),[tourOpen,setTourOpen]=useState(false),[tourStep,setTourStep]=useState(0);
 async function refresh(id=ws?.id){if(!id)return;const results=await Promise.allSettled([req(`/workspaces/${id}/dashboard/`),req(`/workspaces/${id}/assets/`),req(`/workspaces/${id}/guidelines/`),req(`/workspaces/${id}/history/`),req(`/workspaces/${id}/integrations/`)]);const names=['dashboard','content','guidelines','review history','settings'];results.forEach((result,index)=>{if(result.status==='rejected'){setError(`Could not refresh ${names[index]}: ${result.reason?.message||'request failed'}`);return}const value=result.value;if(index===0)setDash(value);if(index===1){const rows=Array.isArray(value)?value:[];setAssets(rows);setSelected(previous=>previous?rows.find((item:any)=>item.id===previous.id)||previous:null)}if(index===2)setGuides(Array.isArray(value)?value:[]);if(index===3)setHistory(Array.isArray(value)?value:[]);if(index===4)setIntegrations(value||{})})}
