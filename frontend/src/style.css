@@ -368,3 +368,18 @@ nav button{font-size:13px}
 .diff-line--added{color:#285d46;background:#eaf5ee;border-left:3px solid #60ad7f}
 .diff-line--context{color:#586b60;background:#f0f4ef}
 @media(max-width:480px){.diff-line{grid-template-columns:1fr;gap:4px}.diff-line>span{font-size:9px}}
+
+/* Match guideline detail readability to the rest of the workspace. */
+.guideline{font-size:13px}
+.guideline h3{font-size:20px;line-height:1.3}
+.guideline p{font-size:13px;line-height:1.6}
+.guideline .rulelist b{font-size:13px}
+.guideline .rulelist p{font-size:12px;line-height:1.55}
+.guideline .tag{font-size:11px;padding:6px 10px}
+.guideline .textbtn,.guideline .secondary{font-size:12px}
+.config-summary> b{font-size:14px}
+.config-summary>p,.config-summary .activity small,.config-summary .textbtn{font-size:12px;line-height:1.55}
+
+/* Keep the login/app hidden from the browser's first paint until the intro is done. */
+html.brand-intro-active,html.brand-intro-active body{background:#0b302b}
+html.brand-intro-active .auth,html.brand-intro-active .app{visibility:hidden}
