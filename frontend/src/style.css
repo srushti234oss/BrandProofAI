@@ -299,3 +299,32 @@ nav button{font-size:13px}
   .app .content>.pagehead,.app .content>.panel,.app .content>.guideline,.app .content>.clarityrow,.app .content>.campaign-panel,.app .content>.detailgrid,.app .content>.metrics,.app .content>.grid,.app .content>.bottomgrid,.app .content .detailgrid>.detailmain,.app .content .detailgrid>.versionpanel,.app .content .detailmain .finding{animation:none!important}
   .app .content .panel:hover,.app .content .metric:hover,.app .content .insight-card:hover,.app .content .guideline:hover,.app .content .clarityrow:hover,.app .content .campaign-panel:hover,.app .content .finding:hover,.app .content .campaign-conflict:hover,.app .content .claimrow:hover{transform:none!important}
 }
+
+/* Keep guideline identity, rules, and examples inside aligned card columns. */
+.guideline{
+  grid-template-columns:minmax(190px,230px) minmax(0,1fr);
+  align-items:start;
+  padding:20px;
+}
+.guideline>div:nth-child(2),
+.guideline>div:nth-child(3){grid-column:2;min-width:0}
+.guideline>div:nth-child(3){
+  border-top:1px solid #e9efeb;
+  margin-top:2px;
+  padding-top:14px;
+}
+.guideline>div:nth-child(3) .buttonrow{justify-content:flex-start;gap:10px;margin-top:10px}
+@media(max-width:650px){
+  .guideline{grid-template-columns:minmax(0,1fr);padding:18px}
+  .guideline>div:nth-child(2),.guideline>div:nth-child(3){grid-column:1}
+}
+
+/* Readable, human-facing version comparison */
+.version-compare .diff{display:grid;gap:8px;max-height:340px;overflow:auto;margin:10px 0 0;padding:10px;background:rgba(245,247,243,.72);border:1px solid #e3eae4;border-radius:10px;white-space:normal;font:inherit;color:inherit}
+.diff-line{display:grid;grid-template-columns:minmax(82px,auto) minmax(0,1fr);align-items:start;gap:10px;padding:10px 11px;border-radius:7px}
+.diff-line>span{padding-top:2px;font:700 10px/1.4 'DM Sans',sans-serif;letter-spacing:.025em}
+.diff-line p{min-width:0;margin:0;font:13px/1.6 'DM Sans',sans-serif;overflow-wrap:anywhere;white-space:pre-wrap}
+.diff-line--removed{color:#794c45;background:#fff0ed;border-left:3px solid #d18a7d}
+.diff-line--added{color:#285d46;background:#eaf5ee;border-left:3px solid #60ad7f}
+.diff-line--context{color:#586b60;background:#f0f4ef}
+@media(max-width:480px){.diff-line{grid-template-columns:1fr;gap:4px}.diff-line>span{font-size:9px}}
